@@ -1,0 +1,318 @@
+
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>OrçaFácil | Orçamentos de construção</title>
+
+    <meta name="description" content="Cria orçamentos profissionais para trabalhos de construção, reparação e manutenção.">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+    <header class="topbar">
+        <a class="logo" href="#">OrçaFácil<span>.</span></a>
+        <span class="subtitulo">Orçamentos para profissionais</span>
+    </header>
+
+    <main>
+
+        <section class="intro">
+            <p class="etiqueta">SIMPLES · RÁPIDO · PROFISSIONAL</p>
+
+            <h1>Cria o teu próximo orçamento.</h1>
+
+            <p>
+                Preenche os dados, adiciona os trabalhos
+                e gera um documento PDF.
+            </p>
+        </section>
+
+        <form id="formOrcamento">
+
+            <!-- DADOS DO PROFISSIONAL -->
+
+            <section class="painel">
+
+                <h2>1. Dados do profissional</h2>
+
+                <div class="grelha">
+
+                    <label>
+                        Nome ou empresa
+                        <input
+                            id="empresa"
+                            type="text"
+                            required
+                            placeholder="Ex.: João Silva Construções"
+                        >
+                    </label>
+
+                    <label>
+                        NIF
+                        <input
+                            id="nifEmpresa"
+                            type="text"
+                            inputmode="numeric"
+                            placeholder="NIF do profissional"
+                        >
+                    </label>
+
+                    <label>
+                        Telefone ou email
+                        <input
+                            id="contacto"
+                            type="text"
+                            placeholder="Contacto profissional"
+                        >
+                    </label>
+
+                    <label>
+                        Morada
+                        <input
+                            id="moradaEmpresa"
+                            type="text"
+                            placeholder="Morada do profissional"
+                        >
+                    </label>
+                    <label>
+                            Logótipo da empresa
+                            <input
+                                id="logotipo"
+                                type="file"
+                                accept="image/png, image/jpeg"
+    >
+                    </label>
+                </div>
+
+            </section>
+
+            <!-- DADOS DO CLIENTE -->
+
+            <section class="painel">
+
+                <h2>2. Dados do cliente e proposta</h2>
+
+                <div class="grelha">
+
+                    <label>
+                        Nome do cliente
+                        <input
+                            id="cliente"
+                            type="text"
+                            required
+                            placeholder="Nome do cliente"
+                        >
+                    </label>
+
+                    <label>
+                        Local da obra
+                        <input
+                            id="moradaObra"
+                            type="text"
+                            placeholder="Morada da obra"
+                        >
+                    </label>
+
+                    <label>
+                        Número do orçamento
+                        <input
+                            id="numero"
+                            type="text"
+                            required
+                            value="ORC-2026-001"
+                        >
+                    </label>
+
+                    <label>
+                        Data
+                        <input
+                            id="data"
+                            type="date"
+                            required
+                        >
+                    </label>
+
+                    <label>
+                        Validade da proposta
+                        <input
+                            id="validade"
+                            type="date"
+                            required
+                        >
+                    </label>
+
+                </div>
+
+            </section>
+
+            <!-- TRABALHOS E MATERIAIS -->
+
+            <section class="painel">
+
+                <div class="titulo-linha">
+
+                    <h2>3. Trabalhos e materiais</h2>
+
+                    <button
+                        type="button"
+                        id="adicionar"
+                        class="secundario"
+                    >
+                        + Adicionar linha
+                    </button>
+
+                </div>
+
+                <div id="linhas">
+
+                    <div class="linha-trabalho">
+
+                        <label class="descricao">
+                            Descrição
+                            <input
+                                class="desc"
+                                type="text"
+                                required
+                                placeholder="Ex.: Pintura de paredes"
+                            >
+                        </label>
+
+                        <label>
+                            Quantidade
+                            <input
+                                class="qtd"
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                value="1"
+                                required
+                            >
+                        </label>
+
+                        <label>
+                            Preço unit. (€)
+                            <input
+                                class="preco-unit"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value="100"
+                                required
+                            >
+                        </label>
+
+                        <label>
+                            IVA
+                            <select class="taxa">
+                                <option value="23">23%</option>
+                                <option value="13">13%</option>
+                                <option value="6">6%</option>
+                                <option value="0">0%</option>
+                            </select>
+                        </label>
+
+                        <button
+                            type="button"
+                            class="remover"
+                            aria-label="Remover linha"
+                        >
+                            ×
+                        </button>
+
+                    </div>
+
+                </div>
+
+                <div class="totais">
+
+                    <p>
+                        Subtotal (sem IVA)
+                        <strong id="subtotal">0,00 €</strong>
+                    </p>
+
+                    <p>
+                        IVA total
+                        <strong id="totalIva">0,00 €</strong>
+                    </p>
+
+                    <p class="total-final">
+                        Total com IVA
+                        <strong id="total">0,00 €</strong>
+                    </p>
+
+                </div>
+
+            </section>
+
+            <!-- CONDIÇÕES -->
+
+            <section class="painel">
+
+                <h2>4. Condições da proposta</h2>
+
+                <label>
+                    Notas, materiais incluídos ou condições de pagamento
+
+                    <textarea
+                        id="notas"
+                        rows="4"
+                        placeholder="Ex.: Prazo estimado de execução: 5 dias úteis. Condições de pagamento a acordar."
+                    ></textarea>
+
+                </label>
+
+            </section>
+
+            <!-- BOTÕES -->
+
+            <div class="acoes">
+
+                <button
+                    type="submit"
+                    class="principal"
+                >
+                    Gerar orçamento PDF
+                </button>
+
+                <button
+                    type="button"
+                    id="imprimir"
+                    class="secundario"
+                >
+                    Imprimir / Guardar em PDF
+                </button>
+
+            </div>
+
+            <p id="mensagem" role="status" aria-live="polite"></p>
+
+        </form>
+
+        <p class="aviso">
+            Protótipo de elaboração de propostas comerciais.
+            Este documento não é uma fatura nem substitui
+            os documentos fiscais legalmente exigidos.
+        </p>
+
+    </main>
+
+    <footer>
+        OrçaFácil · Versão de demonstração
+    </footer>
+
+    <!-- Biblioteca PDF -->
+    <script
+        src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
+    ></script>
+
+    <!-- Código principal da aplicação -->
+    <script src="app.js"></script>
+
+</body>
+</html>
+
