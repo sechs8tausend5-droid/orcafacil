@@ -1,4 +1,3 @@
-
 "use strict";
 
 // ==========================================
@@ -295,10 +294,18 @@ function adicionarLinha(
 
 campo("adicionar").addEventListener("click", () => {
     adicionarLinha();
+    guardarRascunho();
 });
 
-linhas.addEventListener("input", calcular);
-linhas.addEventListener("change", calcular);
+linhas.addEventListener("input", () => {
+    calcular();
+    guardarRascunho();
+});
+
+linhas.addEventListener("change", () => {
+    calcular();
+    guardarRascunho();
+});
 
 linhas.addEventListener("click", event => {
 
@@ -307,6 +314,7 @@ linhas.addEventListener("click", event => {
     if (botao) {
         botao.closest(".linha-trabalho").remove();
         calcular();
+        guardarRascunho();
     }
 });
 
@@ -317,31 +325,524 @@ linhas.addEventListener("click", event => {
 function dadosOrcamento() {
 
     return {
-
         empresa: campo("empresa").value.trim(),
-
         nif: campo("nifEmpresa").value.trim(),
-
         contacto: campo("contacto").value.trim(),
-
         moradaEmpresa: campo("moradaEmpresa").value.trim(),
-
         cliente: campo("cliente").value.trim(),
-
         moradaObra: campo("moradaObra").value.trim(),
-
         numero: campo("numero").value.trim(),
-
         data: campo("data").value,
-
         validade: campo("validade").value,
-
         notas: campo("notas").value.trim(),
-
         items: obterLinhas()
     };
 }
 
+// ==========================================
+// GUARDAR DADOS NO NAVEGADOR
+// ==========================================
+
+const CHAVE_PROFISSIONAL = "orcafacil_profissional";
+const CHAVE_RASCUNHO = "orcafacil_rascunho";
+const CHAVE_HISTORICO = "orcafacil_historico";
+const CHAVE_CONTADOR = "orcafacil_contador";
+
+let aRestaurarDados = false;
+let orcamentoAtualId = null;
+
+// ==========================================
+// NUMERAÇÃO AUTOMÁTICA
+// ==========================================
+
+function gerarNumeroOrcamento() {
+
+    const ano = new Date().getFullYear();
+    let contadores = {};
+
+    try {
+        contadores = JSON.parse(
+            localStorage.getItem(CHAVE_CONTADOR) || "{}"
+        );
+    } catch (erro) {
+        contadores = {};
+    }
+
+    const historico = obterHistorico();
+
+    // Considerar também números que já existam no histórico.
+    let maiorNumero = Number(contadores[ano] || 0);
+
+    historico.forEach(orcamento => {
+        const correspondencia = String(orcamento.numero || "")
+            .match(new RegExp("^ORC-" + ano + "-(\\d+)$"));
+
+        if (correspondencia) {
+            maiorNumero = Math.max(
+                maiorNumero,
+                Number(correspondencia[1])
+            );
+        }
+    });
+
+    maiorNumero++;
+
+    contadores[ano] = maiorNumero;
+
+    localStorage.setItem(
+        CHAVE_CONTADOR,
+        JSON.stringify(contadores)
+    );
+
+    return "ORC-" + ano + "-" +
+        String(maiorNumero).padStart(4, "0");
+}
+
+// ==========================================
+// DADOS DO PROFISSIONAL
+// ==========================================
+
+function guardarDadosProfissional() {
+
+    if (aRestaurarDados) return;
+
+    const dados = {
+        empresa: campo("empresa").value,
+        nifEmpresa: campo("nifEmpresa").value,
+        contacto: campo("contacto").value,
+        moradaEmpresa: campo("moradaEmpresa").value
+    };
+
+    try {
+        localStorage.setItem(
+            CHAVE_PROFISSIONAL,
+            JSON.stringify(dados)
+        );
+    } catch (erro) {
+        console.error("Erro ao guardar dados profissionais:", erro);
+    }
+}
+
+function carregarDadosProfissional() {
+
+    try {
+        const guardados = localStorage.getItem(CHAVE_PROFISSIONAL);
+        if (!guardados) return;
+
+        const dados = JSON.parse(guardados);
+
+        campo("empresa").value = dados.empresa || "";
+        campo("nifEmpresa").value = dados.nifEmpresa || "";
+        campo("contacto").value = dados.contacto || "";
+        campo("moradaEmpresa").value = dados.moradaEmpresa || "";
+
+    } catch (erro) {
+        console.error("Erro ao carregar dados profissionais:", erro);
+    }
+}
+
+// ==========================================
+// HISTÓRICO DE ORÇAMENTOS
+// ==========================================
+
+function obterHistorico() {
+
+    try {
+        const guardado = localStorage.getItem(CHAVE_HISTORICO);
+        const historico = guardado ? JSON.parse(guardado) : [];
+
+        return Array.isArray(historico) ? historico : [];
+
+    } catch (erro) {
+        console.error("Erro ao ler histórico:", erro);
+        return [];
+    }
+}
+
+function guardarHistorico(historico) {
+
+    try {
+        localStorage.setItem(
+            CHAVE_HISTORICO,
+            JSON.stringify(historico)
+        );
+
+        return true;
+
+    } catch (erro) {
+        console.error("Erro ao guardar histórico:", erro);
+        mostrarMensagem(
+            "Não foi possível guardar o histórico. O armazenamento pode estar cheio."
+        );
+
+        return false;
+    }
+}
+
+// Guarda ou atualiza o orçamento atual no histórico.
+function guardarNoHistorico() {
+
+    const dados = dadosOrcamento();
+
+    if (!dados.numero) {
+        mostrarMensagem("O orçamento não tem número.");
+        return false;
+    }
+
+    const historico = obterHistorico();
+
+    const id = orcamentoAtualId || dados.numero;
+
+    const indice = historico.findIndex(
+        item => item.id === id || item.numero === dados.numero
+    );
+
+    const registo = {
+        ...dados,
+        id,
+        atualizadoEm: new Date().toISOString()
+    };
+
+    if (indice >= 0) {
+        historico[indice] = registo;
+    } else {
+        historico.push(registo);
+    }
+
+    if (!guardarHistorico(historico)) {
+        return false;
+    }
+
+    orcamentoAtualId = id;
+    return true;
+}
+
+// ==========================================
+// GUARDAR RASCUNHO AUTOMATICAMENTE
+// ==========================================
+
+function guardarRascunho() {
+
+    if (aRestaurarDados) return;
+
+    const rascunho = {
+        ...dadosOrcamento(),
+        id: orcamentoAtualId
+    };
+
+    try {
+        localStorage.setItem(
+            CHAVE_RASCUNHO,
+            JSON.stringify(rascunho)
+        );
+    } catch (erro) {
+        console.error("Erro ao guardar o rascunho:", erro);
+        mostrarMensagem(
+            "Não foi possível guardar o orçamento neste navegador."
+        );
+    }
+}
+
+// ==========================================
+// RESTAURAR UM ORÇAMENTO NO FORMULÁRIO
+// ==========================================
+
+function preencherFormulario(orcamento) {
+
+    aRestaurarDados = true;
+
+    campo("empresa").value = orcamento.empresa || "";
+    campo("nifEmpresa").value = orcamento.nif || "";
+    campo("contacto").value = orcamento.contacto || "";
+    campo("moradaEmpresa").value = orcamento.moradaEmpresa || "";
+
+    campo("cliente").value = orcamento.cliente || "";
+    campo("moradaObra").value = orcamento.moradaObra || "";
+    campo("numero").value = orcamento.numero || "";
+    campo("data").value = orcamento.data || "";
+    campo("validade").value = orcamento.validade || "";
+    campo("notas").value = orcamento.notas || "";
+
+    linhas.innerHTML = "";
+
+    if (Array.isArray(orcamento.items) && orcamento.items.length > 0) {
+
+        orcamento.items.forEach(item => {
+            adicionarLinha(
+                item.descricao || "",
+                item.quantidade ?? 1,
+                item.preco ?? 0,
+                Number(item.taxa ?? 23)
+            );
+        });
+
+    } else {
+        adicionarLinha();
+    }
+
+    orcamentoAtualId = orcamento.id || orcamento.numero;
+
+    calcular();
+
+    aRestaurarDados = false;
+
+    guardarDadosProfissional();
+    guardarRascunho();
+}
+
+// ==========================================
+// CARREGAR RASCUNHO EXISTENTE
+// ==========================================
+
+function carregarRascunho() {
+
+    try {
+        const guardado = localStorage.getItem(CHAVE_RASCUNHO);
+
+        if (!guardado) return false;
+
+        const rascunho = JSON.parse(guardado);
+
+        // Recupera também os rascunhos da versão anterior.
+        if (!rascunho.numero) {
+            rascunho.numero = gerarNumeroOrcamento();
+        }
+
+        preencherFormulario(rascunho);
+
+        return true;
+
+    } catch (erro) {
+        console.error("Erro ao recuperar o rascunho:", erro);
+        return false;
+    }
+}
+
+// ==========================================
+// MOSTRAR HISTÓRICO
+// ==========================================
+
+function mostrarHistorico() {
+
+    const secao = campo("historicoOrcamentos");
+    const lista = campo("listaOrcamentos");
+
+    const historico = obterHistorico();
+
+    secao.hidden = false;
+    lista.innerHTML = "";
+
+    if (historico.length === 0) {
+        lista.textContent = "Ainda não existem orçamentos guardados.";
+        return;
+    }
+
+    historico.sort((a, b) =>
+        String(b.atualizadoEm || "").localeCompare(
+            String(a.atualizadoEm || "")
+        )
+    );
+
+    historico.forEach(orcamento => {
+
+        const elemento = document.createElement("div");
+        elemento.className = "item-historico";
+
+        const titulo = document.createElement("h3");
+        titulo.textContent = orcamento.numero || "Sem número";
+
+        const cliente = document.createElement("p");
+        cliente.textContent = "Cliente: " + (orcamento.cliente || "-");
+
+        const data = document.createElement("p");
+        data.textContent = "Data: " + (orcamento.data || "-");
+
+        const total = (orcamento.items || []).reduce(
+            (soma, item) => {
+                const base = Number(item.quantidade || 0) *
+                    Number(item.preco || 0);
+
+                return soma + base + base * Number(item.taxa || 0) / 100;
+            },
+            0
+        );
+
+        const valor = document.createElement("p");
+        valor.textContent = "Total: " + euros(total);
+
+        const botoes = document.createElement("div");
+        botoes.className = "acoes";
+
+        const abrir = document.createElement("button");
+        abrir.type = "button";
+        abrir.className = "secundario";
+        abrir.textContent = "Abrir / Editar";
+        abrir.dataset.acao = "abrir";
+        abrir.dataset.id = orcamento.id;
+
+        const duplicar = document.createElement("button");
+        duplicar.type = "button";
+        duplicar.className = "secundario";
+        duplicar.textContent = "Duplicar";
+        duplicar.dataset.acao = "duplicar";
+        duplicar.dataset.id = orcamento.id;
+
+        const eliminar = document.createElement("button");
+        eliminar.type = "button";
+        eliminar.className = "remover";
+        eliminar.textContent = "Eliminar";
+        eliminar.dataset.acao = "eliminar";
+        eliminar.dataset.id = orcamento.id;
+
+        botoes.append(abrir, duplicar, eliminar);
+
+        elemento.append(titulo, cliente, data, valor, botoes);
+        lista.append(elemento);
+    });
+}
+
+// ==========================================
+// AÇÕES DO HISTÓRICO
+// ==========================================
+
+campo("listaOrcamentos").addEventListener("click", event => {
+
+    const botao = event.target.closest("button[data-acao]");
+
+    if (!botao) return;
+
+    const id = botao.dataset.id;
+    const acao = botao.dataset.acao;
+
+    const historico = obterHistorico();
+
+    const orcamento = historico.find(item => item.id === id);
+
+    if (!orcamento) {
+        mostrarMensagem("Não foi possível encontrar esse orçamento.");
+        return;
+    }
+
+    if (acao === "abrir") {
+
+        preencherFormulario(orcamento);
+
+        campo("historicoOrcamentos").hidden = true;
+
+        mostrarMensagem("Orçamento carregado para edição.");
+
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    if (acao === "duplicar") {
+
+        const copia = {
+            ...orcamento,
+            numero: gerarNumeroOrcamento(),
+            data: campo("data").value,
+            id: null
+        };
+
+        preencherFormulario(copia);
+
+        orcamentoAtualId = null;
+        guardarRascunho();
+
+        campo("numero").value = copia.numero;
+
+        mostrarMensagem("Cópia criada com um novo número.");
+
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    if (acao === "eliminar") {
+
+        if (!confirm("Queres mesmo eliminar este orçamento?")) {
+            return;
+        }
+
+        const atualizados = historico.filter(item => item.id !== id);
+
+        if (guardarHistorico(atualizados)) {
+            mostrarHistorico();
+            mostrarMensagem("Orçamento eliminado do histórico.");
+        }
+    }
+});
+
+// ==========================================
+// BOTÃO HISTÓRICO
+// ==========================================
+
+campo("abrirHistorico").addEventListener("click", () => {
+
+    const secao = campo("historicoOrcamentos");
+
+    if (secao.hidden) {
+        mostrarHistorico();
+    } else {
+        secao.hidden = true;
+    }
+});
+
+// ==========================================
+// BOTÃO NOVO ORÇAMENTO
+// ==========================================
+
+campo("novoOrcamento").addEventListener("click", () => {
+
+    if (!confirm("Queres guardar o orçamento atual e começar um novo?")) {
+        return;
+    }
+
+    // Guardar o orçamento atual se tiver conteúdo.
+    const temConteudo =
+        campo("cliente").value.trim() ||
+        obterLinhas().some(item => item.descricao.trim());
+
+    if (temConteudo) {
+        if (!guardarNoHistorico()) return;
+    }
+
+    aRestaurarDados = true;
+
+    form.reset();
+    linhas.innerHTML = "";
+
+    iniciarDatas();
+
+    adicionarLinha();
+
+    campo("numero").value = gerarNumeroOrcamento();
+
+    orcamentoAtualId = null;
+
+    aRestaurarDados = false;
+
+    guardarDadosProfissional();
+    calcular();
+    guardarRascunho();
+
+    campo("historicoOrcamentos").hidden = true;
+
+    mostrarMensagem("Novo orçamento criado: " + campo("numero").value);
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
+});
+
+// ==========================================
+// EVENTOS DE GRAVAÇÃO AUTOMÁTICA
+// ==========================================
+
+["empresa", "nifEmpresa", "contacto", "moradaEmpresa"].forEach(id => {
+    campo(id).addEventListener("input", guardarDadosProfissional);
+    campo(id).addEventListener("change", guardarDadosProfissional);
+});
+
+["cliente", "moradaObra", "numero", "data", "validade", "notas"].forEach(id => {
+    campo(id).addEventListener("input", guardarRascunho);
+    campo(id).addEventListener("change", guardarRascunho);
+});
 // ==========================================
 // ESCREVER TEXTO NO PDF
 // ==========================================
@@ -408,14 +909,11 @@ async function gerarPDF() {
 
         let y = 20;
 
-        // --------------------------------------
         // CABEÇALHO
-        // --------------------------------------
 
         doc.setFillColor(...azul);
         doc.rect(0, 0, 210, 43, "F");
 
-        // Espaço para logótipo
         doc.setDrawColor(255, 255, 255);
         doc.setLineWidth(0.5);
 
@@ -471,7 +969,6 @@ async function gerarPDF() {
             });
         }
 
-        // Título
         doc.setFontSize(21);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(255, 255, 255);
@@ -491,9 +988,7 @@ async function gerarPDF() {
 
         y = 55;
 
-        // --------------------------------------
         // PRESTADOR E CLIENTE
-        // --------------------------------------
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
@@ -548,9 +1043,7 @@ async function gerarPDF() {
 
         y = Math.max(yEmpresa, yCliente) + 8;
 
-        // --------------------------------------
         // DATA E VALIDADE
-        // --------------------------------------
 
         doc.setFillColor(...azulClaro);
 
@@ -578,9 +1071,7 @@ async function gerarPDF() {
 
         y += 25;
 
-        // --------------------------------------
         // TÍTULO DOS TRABALHOS
-        // --------------------------------------
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(11);
@@ -590,9 +1081,7 @@ async function gerarPDF() {
 
         y += 7;
 
-        // --------------------------------------
         // CABEÇALHO DA TABELA
-        // --------------------------------------
 
         function cabecalhoTabela() {
 
@@ -608,11 +1097,15 @@ async function gerarPDF() {
 
             doc.text("DESCRIÇÃO", 21, y + 1);
 
-            doc.text("QTD.", 116, y + 1, {
+            doc.text("QTD.", 105, y + 1, {
                 align: "right"
             });
 
-            doc.text("PREÇO UNIT.", 153, y + 1, {
+            doc.text("PREÇO UNIT.", 143, y + 1, {
+                align: "right"
+            });
+
+            doc.text("IVA", 166, y + 1, {
                 align: "right"
             });
 
@@ -625,14 +1118,12 @@ async function gerarPDF() {
 
         cabecalhoTabela();
 
-        // --------------------------------------
         // LINHAS DOS TRABALHOS
-        // --------------------------------------
 
         d.items.forEach((item, indice) => {
 
             const descricao = doc.splitTextToSize(
-                item.descricao, 82
+                item.descricao, 70
             );
 
             const altura = Math.max(
@@ -667,14 +1158,21 @@ async function gerarPDF() {
 
             doc.text(
                 String(item.quantidade),
-                116,
+                105,
                 y,
                 { align: "right" }
             );
 
             doc.text(
                 euros(item.preco),
-                153,
+                143,
+                y,
+                { align: "right" }
+            );
+
+            doc.text(
+                Number(item.taxa).toLocaleString("pt-PT") + "%",
+                166,
                 y,
                 { align: "right" }
             );
@@ -695,9 +1193,7 @@ async function gerarPDF() {
             );
         });
 
-        // --------------------------------------
         // TOTAIS
-        // --------------------------------------
 
         const subtotal = d.items.reduce(
             (soma, item) => soma + item.base,
@@ -744,7 +1240,8 @@ async function gerarPDF() {
 
         y += 7;
 
-        // Total destacado
+        // TOTAL DESTACADO
+
         doc.setFillColor(...azulClaro);
 
         doc.roundedRect(
@@ -768,9 +1265,7 @@ async function gerarPDF() {
 
         y += 25;
 
-        // --------------------------------------
         // CONDIÇÕES E OBSERVAÇÕES
-        // --------------------------------------
 
         if (d.notas) {
 
@@ -806,9 +1301,7 @@ async function gerarPDF() {
             y += 12;
         }
 
-        // --------------------------------------
         // ASSINATURAS
-        // --------------------------------------
 
         if (y + 30 > 270) {
             doc.addPage();
@@ -842,9 +1335,7 @@ async function gerarPDF() {
             y + 18
         );
 
-        // --------------------------------------
         // RODAPÉ E PAGINAÇÃO
-        // --------------------------------------
 
         const paginas = doc.getNumberOfPages();
 
@@ -874,9 +1365,7 @@ async function gerarPDF() {
             );
         }
 
-        // --------------------------------------
         // DESCARREGAR PDF
-        // --------------------------------------
 
         const nomeSeguro = d.numero.replace(
             /[^a-zA-Z0-9_-]/g,
@@ -901,7 +1390,6 @@ async function gerarPDF() {
         );
     }
 }
-
 // ==========================================
 // VALIDAR FORMULÁRIO
 // ==========================================
@@ -941,7 +1429,15 @@ form.addEventListener("submit", async event => {
         return;
     }
 
+    if (!guardarNoHistorico()) {
+        return;
+    }
+
+    guardarRascunho();
+
     await gerarPDF();
+
+    mostrarHistorico();
 });
 
 // ==========================================
@@ -956,22 +1452,50 @@ campo("imprimir").addEventListener("click", () => {
         return;
     }
 
+    if (!guardarNoHistorico()) {
+        return;
+    }
+
+    guardarRascunho();
+
+    mostrarMensagem("Orçamento guardado no histórico.");
+
     window.print();
+
+    mostrarHistorico();
 });
 
 // ==========================================
 // INICIALIZAR A APLICAÇÃO
 // ==========================================
 
-iniciarDatas();
+aRestaurarDados = true;
 
-adicionarLinha(
-    "Trabalhos de pintura",
-    1,
-    100,
-    23
-);
+iniciarDatas();
+carregarDadosProfissional();
+
+const existeRascunho = carregarRascunho();
+
+if (!existeRascunho) {
+
+    adicionarLinha(
+        "Trabalhos de pintura",
+        1,
+        100,
+        23
+    );
+
+    campo("numero").value = gerarNumeroOrcamento();
+
+    orcamentoAtualId = null;
+}
 
 calcular();
+
+aRestaurarDados = false;
+
+// Guardar o estado inicial.
+guardarDadosProfissional();
+guardarRascunho();
 
 console.log("OrçaFácil pronto");
