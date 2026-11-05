@@ -32,6 +32,25 @@
             </p>
         </section>
 
+        <!-- GESTÃO DE ORÇAMENTOS -->
+
+        <div class="acoes">
+            <button type="button" id="novoOrcamento" class="secundario">
+                + Novo orçamento
+            </button>
+
+            <button type="button" id="abrirHistorico" class="secundario">
+                Histórico de orçamentos
+            </button>
+        </div>
+
+        <section id="historicoOrcamentos" class="painel" hidden>
+            <h2>Histórico de orçamentos</h2>
+            <div id="listaOrcamentos">
+                <p>A carregar histórico...</p>
+            </div>
+        </section>
+
         <form id="formOrcamento">
 
             <!-- DADOS DO PROFISSIONAL -->
@@ -44,49 +63,34 @@
 
                     <label>
                         Nome ou empresa
-                        <input
-                            id="empresa"
-                            type="text"
-                            required
-                            placeholder="Ex.: João Silva Construções"
-                        >
+                        <input id="empresa" type="text" required
+                            placeholder="Ex.: João Silva Construções">
                     </label>
 
                     <label>
                         NIF
-                        <input
-                            id="nifEmpresa"
-                            type="text"
-                            inputmode="numeric"
-                            placeholder="NIF do profissional"
-                        >
+                        <input id="nifEmpresa" type="text"
+                            inputmode="numeric" placeholder="NIF do profissional">
                     </label>
 
                     <label>
                         Telefone ou email
-                        <input
-                            id="contacto"
-                            type="text"
-                            placeholder="Contacto profissional"
-                        >
+                        <input id="contacto" type="text"
+                            placeholder="Contacto profissional">
                     </label>
 
                     <label>
                         Morada
-                        <input
-                            id="moradaEmpresa"
-                            type="text"
-                            placeholder="Morada do profissional"
-                        >
+                        <input id="moradaEmpresa" type="text"
+                            placeholder="Morada do profissional">
                     </label>
+
                     <label>
-                            Logótipo da empresa
-                            <input
-                                id="logotipo"
-                                type="file"
-                                accept="image/png, image/jpeg"
-    >
+                        Logótipo da empresa
+                        <input id="logotipo" type="file"
+                            accept="image/png, image/jpeg">
                     </label>
+
                 </div>
 
             </section>
@@ -101,49 +105,29 @@
 
                     <label>
                         Nome do cliente
-                        <input
-                            id="cliente"
-                            type="text"
-                            required
-                            placeholder="Nome do cliente"
-                        >
+                        <input id="cliente" type="text" required
+                            placeholder="Nome do cliente">
                     </label>
 
                     <label>
                         Local da obra
-                        <input
-                            id="moradaObra"
-                            type="text"
-                            placeholder="Morada da obra"
-                        >
+                        <input id="moradaObra" type="text"
+                            placeholder="Morada da obra">
                     </label>
 
                     <label>
                         Número do orçamento
-                        <input
-                            id="numero"
-                            type="text"
-                            required
-                            value="ORC-2026-001"
-                        >
+                        <input id="numero" type="text" required readonly>
                     </label>
 
                     <label>
                         Data
-                        <input
-                            id="data"
-                            type="date"
-                            required
-                        >
+                        <input id="data" type="date" required>
                     </label>
 
                     <label>
                         Validade da proposta
-                        <input
-                            id="validade"
-                            type="date"
-                            required
-                        >
+                        <input id="validade" type="date" required>
                     </label>
 
                 </div>
@@ -155,17 +139,11 @@
             <section class="painel">
 
                 <div class="titulo-linha">
-
                     <h2>3. Trabalhos e materiais</h2>
 
-                    <button
-                        type="button"
-                        id="adicionar"
-                        class="secundario"
-                    >
+                    <button type="button" id="adicionar" class="secundario">
                         + Adicionar linha
                     </button>
-
                 </div>
 
                 <div id="linhas">
@@ -174,36 +152,20 @@
 
                         <label class="descricao">
                             Descrição
-                            <input
-                                class="desc"
-                                type="text"
-                                required
-                                placeholder="Ex.: Pintura de paredes"
-                            >
+                            <input class="desc" type="text" required
+                                placeholder="Ex.: Pintura de paredes">
                         </label>
 
                         <label>
                             Quantidade
-                            <input
-                                class="qtd"
-                                type="number"
-                                min="0.01"
-                                step="0.01"
-                                value="1"
-                                required
-                            >
+                            <input class="qtd" type="number"
+                                min="0.01" step="0.01" value="1" required>
                         </label>
 
                         <label>
                             Preço unit. (€)
-                            <input
-                                class="preco-unit"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value="100"
-                                required
-                            >
+                            <input class="preco-unit" type="number"
+                                min="0" step="0.01" value="100" required>
                         </label>
 
                         <label>
@@ -216,11 +178,8 @@
                             </select>
                         </label>
 
-                        <button
-                            type="button"
-                            class="remover"
-                            aria-label="Remover linha"
-                        >
+                        <button type="button" class="remover"
+                            aria-label="Remover linha">
                             ×
                         </button>
 
@@ -258,12 +217,8 @@
                 <label>
                     Notas, materiais incluídos ou condições de pagamento
 
-                    <textarea
-                        id="notas"
-                        rows="4"
-                        placeholder="Ex.: Prazo estimado de execução: 5 dias úteis. Condições de pagamento a acordar."
-                    ></textarea>
-
+                    <textarea id="notas" rows="4"
+                        placeholder="Ex.: Prazo estimado de execução: 5 dias úteis. Condições de pagamento a acordar."></textarea>
                 </label>
 
             </section>
@@ -272,18 +227,11 @@
 
             <div class="acoes">
 
-                <button
-                    type="submit"
-                    class="principal"
-                >
+                <button type="submit" class="principal">
                     Gerar orçamento PDF
                 </button>
 
-                <button
-                    type="button"
-                    id="imprimir"
-                    class="secundario"
-                >
+                <button type="button" id="imprimir" class="secundario">
                     Imprimir / Guardar em PDF
                 </button>
 
@@ -305,14 +253,8 @@
         OrçaFácil · Versão de demonstração
     </footer>
 
-    <!-- Biblioteca PDF -->
-    <script
-        src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
-    ></script>
-
-    <!-- Código principal da aplicação -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="app.js"></script>
 
 </body>
 </html>
-
