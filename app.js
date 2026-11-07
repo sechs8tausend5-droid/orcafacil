@@ -30,7 +30,7 @@ function mostrarMensagem(texto) {
 }
 
 // ==========================================
-// LER LOGÓTIPO
+// LER E GUARDAR LOGÓTIPO
 // ==========================================
 
 function obterLogotipo() {
@@ -41,8 +41,20 @@ function obterLogotipo() {
             ? input.files[0]
             : null;
 
+        // Se não foi selecionado um novo ficheiro,
+        // recuperar o logótipo guardado no navegador.
         if (!ficheiro) {
-            resolve(null);
+            try {
+                const dados = JSON.parse(
+                    localStorage.getItem(CHAVE_PROFISSIONAL) || "{}"
+                );
+
+                resolve(dados.logotipo || null);
+
+            } catch (erro) {
+                reject(erro);
+            }
+
             return;
         }
 
@@ -58,7 +70,28 @@ function obterLogotipo() {
 
         const leitor = new FileReader();
 
-        leitor.onload = () => resolve(leitor.result);
+        leitor.onload = () => {
+            try {
+                const dados = JSON.parse(
+                    localStorage.getItem(CHAVE_PROFISSIONAL) || "{}"
+                );
+
+                dados.logotipo = leitor.result;
+
+                localStorage.setItem(
+                    CHAVE_PROFISSIONAL,
+                    JSON.stringify(dados)
+                );
+
+                resolve(leitor.result);
+
+            } catch (erro) {
+                reject(new Error(
+                    "Não foi possível guardar o logótipo. " +
+                    "O armazenamento do navegador pode estar cheio."
+                ));
+            }
+        };
 
         leitor.onerror = () => {
             reject(new Error("Não foi possível ler o logótipo."));
@@ -370,7 +403,6 @@ function gerarNumeroOrcamento() {
 
     const historico = obterHistorico();
 
-    // Considerar também números que já existam no histórico.
     let maiorNumero = Number(contadores[ano] || 0);
 
     historico.forEach(orcamento => {
@@ -406,11 +438,22 @@ function guardarDadosProfissional() {
 
     if (aRestaurarDados) return;
 
+    let dadosAnteriores = {};
+
+    try {
+        dadosAnteriores = JSON.parse(
+            localStorage.getItem(CHAVE_PROFISSIONAL) || "{}"
+        );
+    } catch (erro) {
+        console.error("Erro ao ler dados anteriores:", erro);
+    }
+
     const dados = {
         empresa: campo("empresa").value,
         nifEmpresa: campo("nifEmpresa").value,
         contacto: campo("contacto").value,
-        moradaEmpresa: campo("moradaEmpresa").value
+        moradaEmpresa: campo("moradaEmpresa").value,
+        logotipo: dadosAnteriores.logotipo || null
     };
 
     try {
@@ -420,6 +463,7 @@ function guardarDadosProfissional() {
         );
     } catch (erro) {
         console.error("Erro ao guardar dados profissionais:", erro);
+        mostrarMensagem("Não foi possível guardar os dados da empresa.");
     }
 }
 
@@ -542,7 +586,6 @@ function guardarRascunho() {
         );
     }
 }
-
 // ==========================================
 // RESTAURAR UM ORÇAMENTO NO FORMULÁRIO
 // ==========================================
@@ -603,7 +646,6 @@ function carregarRascunho() {
 
         const rascunho = JSON.parse(guardado);
 
-        // Recupera também os rascunhos da versão anterior.
         if (!rascunho.numero) {
             rascunho.numero = gerarNumeroOrcamento();
         }
@@ -757,32 +799,36 @@ campo("listaOrcamentos").addEventListener("click", event => {
 
     if (acao === "eliminar") {
 
-        if (!confirm("Queres mesmo eliminar este orçamento?")) {
+        if (!confirm("Tens a certeza de que queres eliminar este orçamento?")) {
             return;
         }
 
-        const atualizados = historico.filter(item => item.id !== id);
+        const novoHistorico = historico.filter(
+            item => item.id !== id
+        );
 
-        if (guardarHistorico(atualizados)) {
-            mostrarHistorico();
-            mostrarMensagem("Orçamento eliminado do histórico.");
+        if (!guardarHistorico(novoHistorico)) {
+            return;
         }
+
+        if (orcamentoAtualId === id) {
+            orcamentoAtualId = null;
+        }
+
+        mostrarHistorico();
+        mostrarMensagem("Orçamento eliminado.");
     }
 });
 
 // ==========================================
-// BOTÃO HISTÓRICO
+// BOTÃO ABRIR HISTÓRICO
 // ==========================================
 
 campo("abrirHistorico").addEventListener("click", () => {
-
-    const secao = campo("historicoOrcamentos");
-
-    if (secao.hidden) {
-        mostrarHistorico();
-    } else {
-        secao.hidden = true;
-    }
+    mostrarHistorico();
+    campo("historicoOrcamentos").scrollIntoView({
+        behavior: "smooth"
+    });
 });
 
 // ==========================================
@@ -795,7 +841,6 @@ campo("novoOrcamento").addEventListener("click", () => {
         return;
     }
 
-    // Guardar o orçamento atual se tiver conteúdo.
     const temConteudo =
         campo("cliente").value.trim() ||
         obterLinhas().some(item => item.descricao.trim());
@@ -804,13 +849,24 @@ campo("novoOrcamento").addEventListener("click", () => {
         if (!guardarNoHistorico()) return;
     }
 
+    const dadosEmpresa = {
+        empresa: campo("empresa").value,
+        nifEmpresa: campo("nifEmpresa").value,
+        contacto: campo("contacto").value,
+        moradaEmpresa: campo("moradaEmpresa").value
+    };
+
     aRestaurarDados = true;
 
     form.reset();
     linhas.innerHTML = "";
 
-    iniciarDatas();
+    campo("empresa").value = dadosEmpresa.empresa;
+    campo("nifEmpresa").value = dadosEmpresa.nifEmpresa;
+    campo("contacto").value = dadosEmpresa.contacto;
+    campo("moradaEmpresa").value = dadosEmpresa.moradaEmpresa;
 
+    iniciarDatas();
     adicionarLinha();
 
     campo("numero").value = gerarNumeroOrcamento();
@@ -839,10 +895,22 @@ campo("novoOrcamento").addEventListener("click", () => {
     campo(id).addEventListener("change", guardarDadosProfissional);
 });
 
+// Guardar o logótipo quando é selecionado.
+campo("logotipo").addEventListener("change", async () => {
+    try {
+        await obterLogotipo();
+        mostrarMensagem("Logótipo guardado com sucesso.");
+    } catch (erro) {
+        mostrarMensagem(erro.message);
+        campo("logotipo").value = "";
+    }
+});
+
 ["cliente", "moradaObra", "numero", "data", "validade", "notas"].forEach(id => {
     campo(id).addEventListener("input", guardarRascunho);
     campo(id).addEventListener("change", guardarRascunho);
 });
+
 // ==========================================
 // ESCREVER TEXTO NO PDF
 // ==========================================
@@ -889,7 +957,7 @@ async function gerarPDF() {
 
         const d = dadosOrcamento();
 
-        // Ler o logótipo selecionado
+        // Recuperar o logótipo selecionado ou guardado.
         const logotipo = await obterLogotipo();
 
         const doc = new window.jspdf.jsPDF({
@@ -1070,8 +1138,7 @@ async function gerarPDF() {
         doc.text(d.validade || "-", 100, y + 7);
 
         y += 25;
-
-        // TÍTULO DOS TRABALHOS
+                // TÍTULO DOS TRABALHOS
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(11);
@@ -1390,6 +1457,35 @@ async function gerarPDF() {
         );
     }
 }
+
+// ==========================================
+// VALIDAR NIF PORTUGUÊS
+// ==========================================
+
+function validarNIFPortugal(nif) {
+
+    nif = String(nif || "").replace(/\s/g, "");
+
+    if (!/^\d{9}$/.test(nif)) {
+        return false;
+    }
+
+    const numeros = nif.split("").map(Number);
+
+    let soma = 0;
+
+    for (let i = 0; i < 8; i++) {
+        soma += numeros[i] * (9 - i);
+    }
+
+    const resto = soma % 11;
+
+    const digitoControlo = resto < 2 ? 0 : 11 - resto;
+
+    return digitoControlo === numeros[8];
+}
+
+
 // ==========================================
 // VALIDAR FORMULÁRIO
 // ==========================================
@@ -1397,6 +1493,18 @@ async function gerarPDF() {
 function formularioValido() {
 
     if (!form.reportValidity()) {
+        return false;
+    }
+
+    const nif = campo("nifEmpresa").value.trim();
+
+    if (nif && !validarNIFPortugal(nif)) {
+        mostrarMensagem(
+            "O NIF da empresa não é válido. Verifica os 9 algarismos."
+        );
+
+        campo("nifEmpresa").focus();
+
         return false;
     }
 
@@ -1499,3 +1607,146 @@ guardarDadosProfissional();
 guardarRascunho();
 
 console.log("OrçaFácil pronto");
+
+// ==========================================
+// CÓPIAS DE SEGURANÇA - ORÇAFÁCIL
+// ==========================================
+
+const CHAVES_BACKUP = [
+    "orcafacil_profissional",
+    "orcafacil_rascunho",
+    "orcafacil_historico",
+    "orcafacil_contador"
+];
+
+// EXPORTAR CÓPIA DE SEGURANÇA
+
+const botaoExportar = document.getElementById("exportarBackup");
+
+if (botaoExportar) {
+    botaoExportar.addEventListener("click", function () {
+        try {
+            const dados = {};
+
+            CHAVES_BACKUP.forEach(function (chave) {
+                dados[chave] = localStorage.getItem(chave);
+            });
+
+            const backup = {
+                versao: 1,
+                dataCriacao: new Date().toISOString(),
+                dados: dados
+            };
+
+            const ficheiro = new Blob(
+                [JSON.stringify(backup, null, 2)],
+                { type: "application/json" }
+            );
+
+            const url = URL.createObjectURL(ficheiro);
+            const link = document.createElement("a");
+
+            link.href = url;
+            link.download = "orcafacil-backup-" +
+                new Date().toISOString().slice(0, 10) + ".json";
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            URL.revokeObjectURL(url);
+
+            alert("Cópia de segurança criada com sucesso!");
+
+        } catch (erro) {
+            console.error(erro);
+            alert("Não foi possível criar a cópia de segurança.");
+        }
+    });
+}
+
+// IMPORTAR CÓPIA DE SEGURANÇA
+
+const botaoImportar = document.getElementById("importarBackup");
+const campoFicheiroBackup = document.getElementById("ficheiroBackup");
+
+if (botaoImportar && campoFicheiroBackup) {
+
+    botaoImportar.addEventListener("click", function () {
+        campoFicheiroBackup.click();
+    });
+
+    campoFicheiroBackup.addEventListener("change", async function () {
+
+        const ficheiro = campoFicheiroBackup.files[0];
+
+        if (!ficheiro) return;
+
+        try {
+            const texto = await ficheiro.text();
+            const backup = JSON.parse(texto);
+
+            if (
+                backup.versao !== 1 ||
+                !backup.dados ||
+                typeof backup.dados !== "object"
+            ) {
+                throw new Error("Formato de cópia inválido.");
+            }
+
+            const valido = CHAVES_BACKUP.every(function (chave) {
+                return Object.prototype.hasOwnProperty.call(
+                    backup.dados,
+                    chave
+                );
+            });
+
+            if (!valido) {
+                throw new Error("Faltam dados na cópia de segurança.");
+            }
+
+            const confirmar = confirm(
+                "Atenção: esta operação vai substituir os dados atuais " +
+                "do OrçaFácil pelos dados da cópia de segurança. " +
+                "Queres continuar?"
+            );
+
+            if (!confirmar) {
+                campoFicheiroBackup.value = "";
+                return;
+            }
+
+            CHAVES_BACKUP.forEach(function (chave) {
+
+                const valor = backup.dados[chave];
+
+                if (valor === null) {
+                    localStorage.removeItem(chave);
+
+                } else if (typeof valor === "string") {
+                    localStorage.setItem(chave, valor);
+
+                } else {
+                    throw new Error("Dados inválidos no ficheiro.");
+                }
+            });
+
+            alert(
+                "Cópia de segurança restaurada! " +
+                "A página vai ser atualizada."
+            );
+
+            location.reload();
+
+        } catch (erro) {
+            console.error(erro);
+
+            alert(
+                "Não foi possível importar a cópia de segurança. " +
+                "Verifica se selecionaste um ficheiro válido do OrçaFácil."
+            );
+        }
+
+        campoFicheiroBackup.value = "";
+    });
+}

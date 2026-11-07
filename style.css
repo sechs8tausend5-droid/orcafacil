@@ -400,3 +400,8 @@ footer {
         max-width: 100%;
     }
 }
+
+/* Respeitar o atributo hidden do HTML */
+[hidden] {
+    display: none !important;
+}
