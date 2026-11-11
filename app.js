@@ -858,7 +858,6 @@
         .delete()
         .eq("user_id", utilizadorNuvemId)
         .eq("numero", orcamento.numero);
-
     if (error) {
         throw new Error(
             "Não foi possível eliminar o orçamento: " +
