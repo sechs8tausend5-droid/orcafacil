@@ -848,66 +848,7 @@
     }
 
 
-    const registoAnterior = obterHistorico().find(
-        item => item.numero === dados.numero
-    );
-
-    const registo = {
-        ...dados,
-        id: registoAnterior?.id || orcamentoAtualId || null,
-        atualizadoEm: new Date().toISOString()
-    };
-
-    const { data, error } = await supabaseDados
-        .from("orcafacil_orcamentos")
-        .upsert({
-            user_id: utilizadorNuvemId,
-            numero: dados.numero,
-            dados: registo
-        }, {
-            onConflict: "user_id,numero"
-        })
-        .select("id,numero,dados")
-        .single();
-
-    if (error) {
-        console.error(
-            "Erro ao guardar orçamento na nuvem:",
-            error
-        );
-
-        mostrarMensagem(
-            "Não foi possível guardar o orçamento na nuvem: " +
-            error.message
-        );
-
-        return false;
-    }
-
-    const guardado = {
-        ...(data.dados || registo),
-        id: data.id,
-        numero: data.numero
-    };
-
-    const historico = obterHistorico();
-
-    const indice = historico.findIndex(
-        item => item.numero === data.numero
-    );
-
-    if (indice >= 0) {
-        historico[indice] = guardado;
-    } else {
-        historico.push(guardado);
-    }
-
-    guardarHistoricoLocal(historico);
-
-    orcamentoAtualId = data.id;
-
-    return true;
-}
+    
 
     async function eliminarOrcamentoDaNuvem(orcamento) {
     exigirNuvem();
