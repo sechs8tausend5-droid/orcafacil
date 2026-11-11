@@ -54,8 +54,14 @@
         <p id="mensagemAutenticacao" role="status"></p>
 
     </section>
-    
+
     <main id="areaAplicacao" hidden>
+
+        <div class="acoes">
+            <button type="button" id="terminarSessao" class="secundario">
+                Terminar sessão
+            </button>
+        </div>
 
         <!-- APRESENTAÇÃO -->
 
@@ -335,12 +341,12 @@
 
     <!-- CONFIGURAÇÃO SUPABASE -->
     <script src="supabase-config.js"></script>
-    
-    <!--AUTENTICAÇÃO SUPABASE-->
-    <script src="auth.js"></script>
-    
+
     <!-- APLICAÇÃO -->
     <script src="app.js"></script>
+
+    <!-- AUTENTICAÇÃO -->
+    <script src="auth.js"></script>
 </body>
 
 </html>
