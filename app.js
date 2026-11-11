@@ -848,1375 +848,1357 @@
     }
 
 
-    
+
 
     async function eliminarOrcamentoDaNuvem(orcamento) {
-    exigirNuvem();
-
-    const { error } = await supabaseDados
-        .from("orcafacil_orcamentos")
-        .delete()
-        .eq("user_id", utilizadorNuvemId)
-        .eq("numero", orcamento.numero);
-    if (error) {
-        throw new Error(
-            "Não foi possível eliminar o orçamento: " +
-            error.message
-        );
-    }
-}
-// ==========================================
-// RESTAURAR ORÇAMENTO NO FORMULÁRIO
-// ==========================================
-
-function preencherFormulario(orcamento) {
-    aRestaurarDados = true;
-
-    campo("empresa").value = orcamento.empresa || "";
-    campo("nifEmpresa").value =
-        orcamento.nif || orcamento.nifEmpresa || "";
-    campo("contacto").value = orcamento.contacto || "";
-    campo("moradaEmpresa").value =
-        orcamento.moradaEmpresa || "";
-
-    campo("cliente").value = orcamento.cliente || "";
-    campo("moradaObra").value = orcamento.moradaObra || "";
-    campo("numero").value = orcamento.numero || "";
-    campo("data").value = orcamento.data || "";
-    campo("validade").value = orcamento.validade || "";
-    campo("notas").value = orcamento.notas || "";
-
-    linhas.innerHTML = "";
-
-    if (
-        Array.isArray(orcamento.items) &&
-        orcamento.items.length > 0
-    ) {
-        orcamento.items.forEach(item => {
-            adicionarLinha(
-                item.descricao || "",
-                item.quantidade ?? 1,
-                item.preco ?? 0,
-                Number(item.taxa ?? 23)
-            );
-        });
-    } else {
-        adicionarLinha();
-    }
-
-    orcamentoAtualId = orcamento.id || null;
-
-    calcular();
-
-    aRestaurarDados = false;
-}
-
-// ==========================================
-// MOSTRAR HISTÓRICO
-// ==========================================
-
-function mostrarHistorico() {
-    const secao = campo("historicoOrcamentos");
-    const lista = campo("listaOrcamentos");
-
-    const historico = obterHistorico();
-
-    secao.hidden = false;
-    lista.innerHTML = "";
-
-    if (historico.length === 0) {
-        lista.textContent =
-            "Ainda não existem orçamentos guardados.";
-        return;
-    }
-
-    historico.sort((a, b) =>
-        String(b.atualizadoEm || "").localeCompare(
-            String(a.atualizadoEm || "")
-        )
-    );
-
-    historico.forEach(orcamento => {
-
-        const elemento = document.createElement("div");
-        elemento.className = "item-historico";
-
-        const titulo = document.createElement("h3");
-        titulo.textContent =
-            orcamento.numero || "Sem número";
-
-        const cliente = document.createElement("p");
-        cliente.textContent =
-            "Cliente: " + (orcamento.cliente || "-");
-
-        const data = document.createElement("p");
-        data.textContent =
-            "Data: " + (orcamento.data || "-");
-
-        const total = (orcamento.items || []).reduce(
-            (soma, item) => {
-
-                const base =
-                    Number(item.quantidade || 0) *
-                    Number(item.preco || 0);
-
-                return soma +
-                    base +
-                    base * Number(item.taxa || 0) / 100;
-            },
-            0
-        );
-
-        const valor = document.createElement("p");
-        valor.textContent = "Total: " + euros(total);
-
-        const botoes = document.createElement("div");
-        botoes.className = "acoes";
-
-        const abrir = document.createElement("button");
-        abrir.type = "button";
-        abrir.className = "secundario";
-        abrir.textContent = "Abrir / Editar";
-        abrir.dataset.acao = "abrir";
-        abrir.dataset.id = orcamento.id;
-
-        const duplicar = document.createElement("button");
-        duplicar.type = "button";
-        duplicar.className = "secundario";
-        duplicar.textContent = "Duplicar";
-        duplicar.dataset.acao = "duplicar";
-        duplicar.dataset.id = orcamento.id;
-
-        const eliminar = document.createElement("button");
-        eliminar.type = "button";
-        eliminar.className = "remover";
-        eliminar.textContent = "Eliminar";
-        eliminar.dataset.acao = "eliminar";
-        eliminar.dataset.id = orcamento.id;
-
-        botoes.append(
-            abrir,
-            duplicar,
-            eliminar
-        );
-
-        elemento.append(
-            titulo,
-            cliente,
-            data,
-            valor,
-            botoes
-        );
-
-        lista.append(elemento);
-    });
-}
-// ==========================================
-// CÓPIAS DE SEGURANÇA
-// ==========================================
-
-function exportarBackup() {
-    try {
-        const dados = {};
-
-        CHAVES_BACKUP.forEach(chave => {
-            dados[chave] = localStorage.getItem(chave);
-        });
-
-        const backup = {
-            versao: 1,
-            dataCriacao: new Date().toISOString(),
-            dados
-        };
-
-        const ficheiro = new Blob(
-            [JSON.stringify(backup, null, 2)],
-            { type: "application/json" }
-        );
-
-        const url = URL.createObjectURL(ficheiro);
-        const link = document.createElement("a");
-
-        link.href = url;
-        link.download =
-            "orcafacil-backup-" +
-            new Date().toISOString().slice(0, 10) +
-            ".json";
-
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
-        URL.revokeObjectURL(url);
-
-        alert(
-            "Cópia de segurança criada com sucesso!"
-        );
-
-    } catch (erro) {
-        console.error(erro);
-
-        alert(
-            "Não foi possível criar a cópia de segurança."
-        );
-    }
-}
-
-async function importarBackupNaNuvem(dadosBackup) {
-    exigirNuvem();
-
-    const perfil = dadosBackup[CHAVE_PROFISSIONAL]
-        ? JSON.parse(dadosBackup[CHAVE_PROFISSIONAL])
-        : {};
-
-    const rascunho = dadosBackup[CHAVE_RASCUNHO]
-        ? JSON.parse(dadosBackup[CHAVE_RASCUNHO])
-        : null;
-
-    const historico = dadosBackup[CHAVE_HISTORICO]
-        ? JSON.parse(dadosBackup[CHAVE_HISTORICO])
-        : [];
-
-    const contadores = dadosBackup[CHAVE_CONTADOR]
-        ? JSON.parse(dadosBackup[CHAVE_CONTADOR])
-        : {};
-
-    if (
-        !Array.isArray(historico) ||
-        !contadores ||
-        typeof contadores !== "object"
-    ) {
-        throw new Error(
-            "Os dados do histórico ou dos contadores não são válidos."
-        );
-    }
-
-    const { error: erroPerfil } = await supabaseDados
-        .from("orcafacil_perfis")
-        .upsert({
-            user_id: utilizadorNuvemId,
-            dados: perfil
-        });
-
-    if (erroPerfil) {
-        throw new Error(
-            "Erro ao importar o perfil: " +
-            erroPerfil.message
-        );
-    }
-
-    if (rascunho) {
-        const { error } = await supabaseDados
-            .from("orcafacil_rascunhos")
-            .upsert({
-                user_id: utilizadorNuvemId,
-                dados: rascunho
-            });
-
-        if (error) {
-            throw new Error(
-                "Erro ao importar o rascunho: " +
-                error.message
-            );
-        }
-    }
-
-    const registosContador = Object.entries(contadores)
-        .map(([ano, ultimo_numero]) => ({
-            user_id: utilizadorNuvemId,
-            ano: Number(ano),
-            ultimo_numero: Number(ultimo_numero)
-        }))
-        .filter(item =>
-            Number.isInteger(item.ano) &&
-            Number.isInteger(item.ultimo_numero) &&
-            item.ultimo_numero >= 0
-        );
-
-    if (registosContador.length) {
-        const { error } = await supabaseDados
-            .from("orcafacil_contadores")
-            .upsert(registosContador, {
-                onConflict: "user_id,ano"
-            });
-
-        if (error) {
-            throw new Error(
-                "Erro ao importar os contadores: " +
-                error.message
-            );
-        }
-    }
-
-    // Os orçamentos são adicionados ou atualizados por número.
-    // Os restantes orçamentos existentes não são apagados.
-
-    for (const orcamento of historico) {
-        if (!orcamento || !orcamento.numero) continue;
+        exigirNuvem();
 
         const { error } = await supabaseDados
             .from("orcafacil_orcamentos")
-            .upsert({
-                user_id: utilizadorNuvemId,
-                numero: orcamento.numero,
-                dados: orcamento
-            }, {
-                onConflict: "user_id,numero"
-            });
-
+            .delete()
+            .eq("user_id", utilizadorNuvemId)
+            .eq("numero", orcamento.numero);
         if (error) {
             throw new Error(
-                "Erro ao importar o orçamento " +
-                orcamento.numero + ": " +
+                "Não foi possível eliminar o orçamento: " +
                 error.message
             );
         }
     }
-}
+    // ==========================================
+    // RESTAURAR ORÇAMENTO NO FORMULÁRIO
+    // ==========================================
 
-async function importarBackup(ficheiro) {
-    if (!ficheiro) return;
+    function preencherFormulario(orcamento) {
+        aRestaurarDados = true;
 
-    try {
-        const texto = await ficheiro.text();
-        const backup = JSON.parse(texto);
+        campo("empresa").value = orcamento.empresa || "";
+        campo("nifEmpresa").value =
+            orcamento.nif || orcamento.nifEmpresa || "";
+        campo("contacto").value = orcamento.contacto || "";
+        campo("moradaEmpresa").value =
+            orcamento.moradaEmpresa || "";
+
+        campo("cliente").value = orcamento.cliente || "";
+        campo("moradaObra").value = orcamento.moradaObra || "";
+        campo("numero").value = orcamento.numero || "";
+        campo("data").value = orcamento.data || "";
+        campo("validade").value = orcamento.validade || "";
+        campo("notas").value = orcamento.notas || "";
+
+        linhas.innerHTML = "";
 
         if (
-            backup.versao !== 1 ||
-            !backup.dados ||
-            typeof backup.dados !== "object"
+            Array.isArray(orcamento.items) &&
+            orcamento.items.length > 0
+        ) {
+            orcamento.items.forEach(item => {
+                adicionarLinha(
+                    item.descricao || "",
+                    item.quantidade ?? 1,
+                    item.preco ?? 0,
+                    Number(item.taxa ?? 23)
+                );
+            });
+        } else {
+            adicionarLinha();
+        }
+
+        orcamentoAtualId = orcamento.id || null;
+
+        calcular();
+
+        aRestaurarDados = false;
+    }
+
+    // ==========================================
+    // MOSTRAR HISTÓRICO
+    // ==========================================
+
+    function mostrarHistorico() {
+        const secao = campo("historicoOrcamentos");
+        const lista = campo("listaOrcamentos");
+
+        const historico = obterHistorico();
+
+        secao.hidden = false;
+        lista.innerHTML = "";
+
+        if (historico.length === 0) {
+            lista.textContent =
+                "Ainda não existem orçamentos guardados.";
+            return;
+        }
+
+        historico.sort((a, b) => {
+            const comparacaoData =
+                String(b.data || "").localeCompare(
+                    String(a.data || "")
+                );
+
+            if (comparacaoData !== 0) {
+                return comparacaoData;
+            }
+
+            return String(b.numero || "").localeCompare(
+                String(a.numero || "")
+            );
+        });
+
+        historico.forEach(orcamento => {
+
+            const elemento = document.createElement("div");
+            elemento.className = "item-historico";
+
+            const titulo = document.createElement("h3");
+            titulo.textContent =
+                orcamento.numero || "Sem número";
+
+            const cliente = document.createElement("p");
+            cliente.textContent =
+                "Cliente: " + (orcamento.cliente || "-");
+
+            const data = document.createElement("p");
+            data.textContent =
+                "Data: " + (orcamento.data || "-");
+
+            const total = (orcamento.items || []).reduce(
+                (soma, item) => {
+
+                    const base =
+                        Number(item.quantidade || 0) *
+                        Number(item.preco || 0);
+
+                    return soma +
+                        base +
+                        base * Number(item.taxa || 0) / 100;
+                },
+                0
+            );
+
+            const valor = document.createElement("p");
+            valor.textContent = "Total: " + euros(total);
+
+            const botoes = document.createElement("div");
+            botoes.className = "acoes";
+
+            const abrir = document.createElement("button");
+            abrir.type = "button";
+            abrir.className = "secundario";
+            abrir.textContent = "Abrir / Editar";
+            abrir.dataset.acao = "abrir";
+            abrir.dataset.id = orcamento.id;
+
+            const duplicar = document.createElement("button");
+            duplicar.type = "button";
+            duplicar.className = "secundario";
+            duplicar.textContent = "Duplicar";
+            duplicar.dataset.acao = "duplicar";
+            duplicar.dataset.id = orcamento.id;
+
+            const eliminar = document.createElement("button");
+            eliminar.type = "button";
+            eliminar.className = "remover";
+            eliminar.textContent = "Eliminar";
+            eliminar.dataset.acao = "eliminar";
+            eliminar.dataset.id = orcamento.id;
+
+            botoes.append(
+                abrir,
+                duplicar,
+                eliminar
+            );
+
+            elemento.append(
+                titulo,
+                cliente,
+                data,
+                valor,
+                botoes
+            );
+
+            lista.append(elemento);
+        });
+    }
+    // ==========================================
+    // CÓPIAS DE SEGURANÇA
+    // ==========================================
+
+    function exportarBackup() {
+        try {
+            const dados = {};
+
+            CHAVES_BACKUP.forEach(chave => {
+                dados[chave] = localStorage.getItem(chave);
+            });
+
+            const backup = {
+                versao: 1,
+                dataCriacao: new Date().toISOString(),
+                dados
+            };
+
+            const ficheiro = new Blob(
+                [JSON.stringify(backup, null, 2)],
+                { type: "application/json" }
+            );
+
+            const url = URL.createObjectURL(ficheiro);
+            const link = document.createElement("a");
+
+            link.href = url;
+            link.download =
+                "orcafacil-backup-" +
+                new Date().toISOString().slice(0, 10) +
+                ".json";
+
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            URL.revokeObjectURL(url);
+
+            alert(
+                "Cópia de segurança criada com sucesso!"
+            );
+
+        } catch (erro) {
+            console.error(erro);
+
+            alert(
+                "Não foi possível criar a cópia de segurança."
+            );
+        }
+    }
+
+    async function importarBackupNaNuvem(dadosBackup) {
+        exigirNuvem();
+
+        const perfil = dadosBackup[CHAVE_PROFISSIONAL]
+            ? JSON.parse(dadosBackup[CHAVE_PROFISSIONAL])
+            : {};
+
+        const rascunho = dadosBackup[CHAVE_RASCUNHO]
+            ? JSON.parse(dadosBackup[CHAVE_RASCUNHO])
+            : null;
+
+        const historico = dadosBackup[CHAVE_HISTORICO]
+            ? JSON.parse(dadosBackup[CHAVE_HISTORICO])
+            : [];
+
+        const contadores = dadosBackup[CHAVE_CONTADOR]
+            ? JSON.parse(dadosBackup[CHAVE_CONTADOR])
+            : {};
+
+        if (
+            !Array.isArray(historico) ||
+            !contadores ||
+            typeof contadores !== "object"
         ) {
             throw new Error(
-                "Formato de cópia inválido."
+                "Os dados do histórico ou dos contadores não são válidos."
             );
         }
 
-        const valido = CHAVES_BACKUP.every(chave =>
-            Object.prototype.hasOwnProperty.call(
-                backup.dados,
-                chave
-            )
-        );
+        const { error: erroPerfil } = await supabaseDados
+            .from("orcafacil_perfis")
+            .upsert({
+                user_id: utilizadorNuvemId,
+                dados: perfil
+            });
 
-        if (!valido) {
+        if (erroPerfil) {
             throw new Error(
-                "Faltam dados na cópia de segurança."
+                "Erro ao importar o perfil: " +
+                erroPerfil.message
             );
         }
 
-        const confirmar = confirm(
-            "Os dados profissionais e o rascunho serão substituídos. " +
-            "Os orçamentos do ficheiro serão adicionados ou atualizados " +
-            "na nuvem; os restantes orçamentos existentes não serão " +
-            "eliminados. Queres continuar?"
+        if (rascunho) {
+            const { error } = await supabaseDados
+                .from("orcafacil_rascunhos")
+                .upsert({
+                    user_id: utilizadorNuvemId,
+                    dados: rascunho
+                });
+
+            if (error) {
+                throw new Error(
+                    "Erro ao importar o rascunho: " +
+                    error.message
+                );
+            }
+        }
+
+        const registosContador = Object.entries(contadores)
+            .map(([ano, ultimo_numero]) => ({
+                user_id: utilizadorNuvemId,
+                ano: Number(ano),
+                ultimo_numero: Number(ultimo_numero)
+            }))
+            .filter(item =>
+                Number.isInteger(item.ano) &&
+                Number.isInteger(item.ultimo_numero) &&
+                item.ultimo_numero >= 0
+            );
+
+        if (registosContador.length) {
+            const { error } = await supabaseDados
+                .from("orcafacil_contadores")
+                .upsert(registosContador, {
+                    onConflict: "user_id,ano"
+                });
+
+            if (error) {
+                throw new Error(
+                    "Erro ao importar os contadores: " +
+                    error.message
+                );
+            }
+        }
+
+        // Os orçamentos são adicionados ou atualizados por número.
+        // Os restantes orçamentos existentes não são apagados.
+
+        for (const orcamento of historico) {
+            if (!orcamento || !orcamento.numero) continue;
+
+            const { error } = await supabaseDados
+                .from("orcafacil_orcamentos")
+                .upsert({
+                    user_id: utilizadorNuvemId,
+                    numero: orcamento.numero,
+                    dados: orcamento
+                }, {
+                    onConflict: "user_id,numero"
+                });
+
+            if (error) {
+                throw new Error(
+                    "Erro ao importar o orçamento " +
+                    orcamento.numero + ": " +
+                    error.message
+                );
+            }
+        }
+    }
+
+    async function importarBackup(ficheiro) {
+        if (!ficheiro) return;
+
+        try {
+            const texto = await ficheiro.text();
+            const backup = JSON.parse(texto);
+
+            if (
+                backup.versao !== 1 ||
+                !backup.dados ||
+                typeof backup.dados !== "object"
+            ) {
+                throw new Error(
+                    "Formato de cópia inválido."
+                );
+            }
+
+            const valido = CHAVES_BACKUP.every(chave =>
+                Object.prototype.hasOwnProperty.call(
+                    backup.dados,
+                    chave
+                )
+            );
+
+            if (!valido) {
+                throw new Error(
+                    "Faltam dados na cópia de segurança."
+                );
+            }
+
+            const confirmar = confirm(
+                "Os dados profissionais e o rascunho serão substituídos. " +
+                "Os orçamentos do ficheiro serão adicionados ou atualizados " +
+                "na nuvem; os restantes orçamentos existentes não serão " +
+                "eliminados. Queres continuar?"
+            );
+
+            if (!confirmar) return;
+
+            await importarBackupNaNuvem(backup.dados);
+
+            CHAVES_BACKUP.forEach(chave => {
+
+                const valor = backup.dados[chave];
+
+                if (valor === null) {
+                    localStorage.removeItem(chave);
+
+                } else if (typeof valor === "string") {
+                    localStorage.setItem(chave, valor);
+
+                } else {
+                    throw new Error(
+                        "Dados inválidos no ficheiro de cópia."
+                    );
+                }
+            });
+
+            alert(
+                "Cópia de segurança importada para a tua conta. " +
+                "A página vai ser atualizada."
+            );
+
+            location.reload();
+
+        } catch (erro) {
+            console.error(erro);
+
+            alert(
+                "Não foi possível importar a cópia de segurança: " +
+                erro.message
+            );
+
+        } finally {
+            campo("ficheiroBackup").value = "";
+        }
+    }
+
+    // ==========================================
+    // PDF
+    // ==========================================
+
+    function escreverTextoPDF(
+        doc,
+        texto,
+        x,
+        y,
+        largura = 174
+    ) {
+        const partes = doc.splitTextToSize(
+            String(texto || ""),
+            largura
         );
 
-        if (!confirmar) return;
+        const altura = partes.length * 5;
 
-        await importarBackupNaNuvem(backup.dados);
+        if (y + altura > 275) {
+            doc.addPage();
+            y = 20;
+        }
 
-        CHAVES_BACKUP.forEach(chave => {
+        doc.text(partes, x, y);
 
-            const valor = backup.dados[chave];
+        return y + altura;
+    }
+    async function gerarPDF() {
 
-            if (valor === null) {
-                localStorage.removeItem(chave);
+        if (!window.jspdf || !window.jspdf.jsPDF) {
+            mostrarMensagem(
+                "Biblioteca PDF não carregada. Atualiza a página."
+            );
 
-            } else if (typeof valor === "string") {
-                localStorage.setItem(chave, valor);
+            console.error("jsPDF não está disponível.");
+            return;
+        }
+
+        try {
+            const d = dadosOrcamento();
+            const logotipo = await obterLogotipo();
+
+            const doc = new window.jspdf.jsPDF({
+                orientation: "portrait",
+                unit: "mm",
+                format: "a4"
+            });
+
+            const azul = [36, 86, 179];
+            const azulClaro = [235, 242, 252];
+            const cinza = [90, 100, 115];
+            const escuro = [35, 45, 60];
+
+            const margem = 18;
+            const largura = 174;
+
+            let y = 20;
+
+            // CABEÇALHO
+
+            doc.setFillColor(...azul);
+            doc.rect(0, 0, 210, 43, "F");
+
+            doc.setDrawColor(255, 255, 255);
+            doc.setLineWidth(0.5);
+
+            doc.roundedRect(
+                18, 10, 25, 23, 2, 2, "S"
+            );
+
+            if (logotipo) {
+                const propriedades =
+                    doc.getImageProperties(logotipo);
+
+                const proporcao = Math.min(
+                    22 / propriedades.width,
+                    20 / propriedades.height
+                );
+
+                const larguraImagem =
+                    propriedades.width * proporcao;
+
+                const alturaImagem =
+                    propriedades.height * proporcao;
+
+                const xImagem =
+                    18 + (25 - larguraImagem) / 2;
+
+                const yImagem =
+                    10 + (23 - alturaImagem) / 2;
+
+                const formato =
+                    logotipo.startsWith("data:image/png")
+                        ? "PNG"
+                        : "JPEG";
+
+                doc.addImage(
+                    logotipo,
+                    formato,
+                    xImagem,
+                    yImagem,
+                    larguraImagem,
+                    alturaImagem
+                );
 
             } else {
-                throw new Error(
-                    "Dados inválidos no ficheiro de cópia."
-                );
-            }
-        });
-
-        alert(
-            "Cópia de segurança importada para a tua conta. " +
-            "A página vai ser atualizada."
-        );
-
-        location.reload();
-
-    } catch (erro) {
-        console.error(erro);
-
-        alert(
-            "Não foi possível importar a cópia de segurança: " +
-            erro.message
-        );
-
-    } finally {
-        campo("ficheiroBackup").value = "";
-    }
-}
-
-// ==========================================
-// PDF
-// ==========================================
-
-function escreverTextoPDF(
-    doc,
-    texto,
-    x,
-    y,
-    largura = 174
-) {
-    const partes = doc.splitTextToSize(
-        String(texto || ""),
-        largura
-    );
-
-    const altura = partes.length * 5;
-
-    if (y + altura > 275) {
-        doc.addPage();
-        y = 20;
-    }
-
-    doc.text(partes, x, y);
-
-    return y + altura;
-}
-async function gerarPDF() {
-
-    if (!window.jspdf || !window.jspdf.jsPDF) {
-        mostrarMensagem(
-            "Biblioteca PDF não carregada. Atualiza a página."
-        );
-
-        console.error("jsPDF não está disponível.");
-        return;
-    }
-
-    try {
-        const d = dadosOrcamento();
-        const logotipo = await obterLogotipo();
-
-        const doc = new window.jspdf.jsPDF({
-            orientation: "portrait",
-            unit: "mm",
-            format: "a4"
-        });
-
-        const azul = [36, 86, 179];
-        const azulClaro = [235, 242, 252];
-        const cinza = [90, 100, 115];
-        const escuro = [35, 45, 60];
-
-        const margem = 18;
-        const largura = 174;
-
-        let y = 20;
-
-        // CABEÇALHO
-
-        doc.setFillColor(...azul);
-        doc.rect(0, 0, 210, 43, "F");
-
-        doc.setDrawColor(255, 255, 255);
-        doc.setLineWidth(0.5);
-
-        doc.roundedRect(
-            18, 10, 25, 23, 2, 2, "S"
-        );
-
-        if (logotipo) {
-            const propriedades =
-                doc.getImageProperties(logotipo);
-
-            const proporcao = Math.min(
-                22 / propriedades.width,
-                20 / propriedades.height
-            );
-
-            const larguraImagem =
-                propriedades.width * proporcao;
-
-            const alturaImagem =
-                propriedades.height * proporcao;
-
-            const xImagem =
-                18 + (25 - larguraImagem) / 2;
-
-            const yImagem =
-                10 + (23 - alturaImagem) / 2;
-
-            const formato =
-                logotipo.startsWith("data:image/png")
-                    ? "PNG"
-                    : "JPEG";
-
-            doc.addImage(
-                logotipo,
-                formato,
-                xImagem,
-                yImagem,
-                larguraImagem,
-                alturaImagem
-            );
-
-        } else {
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(8);
-            doc.setTextColor(255, 255, 255);
-
-            doc.text(
-                "LOGÓTIPO",
-                30.5,
-                23,
-                { align: "center" }
-            );
-        }
-
-        doc.setFontSize(21);
-        doc.setFont("helvetica", "bold");
-        doc.setTextColor(255, 255, 255);
-
-        doc.text("ORÇAMENTO", 52, 19);
-
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "normal");
-
-        doc.text("PROPOSTA COMERCIAL", 52, 27);
-
-        doc.setFontSize(10);
-
-        doc.text(
-            "N.º " + d.numero,
-            192,
-            19,
-            { align: "right" }
-        );
-
-        y = 55;
-
-        // PRESTADOR E CLIENTE
-
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.setTextColor(...azul);
-
-        doc.text(
-            "PRESTADOR DE SERVIÇOS",
-            margem,
-            y
-        );
-
-        doc.text("CLIENTE", 112, y);
-
-        y += 8;
-
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.setTextColor(...escuro);
-
-        doc.text(d.empresa || "-", margem, y);
-        doc.text(d.cliente || "-", 112, y);
-
-        y += 6;
-
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-        doc.setTextColor(...cinza);
-
-        let yEmpresa = y;
-        let yCliente = y;
-
-        if (d.nif) {
-            yEmpresa = escreverTextoPDF(
-                doc,
-                "NIF: " + d.nif,
-                margem,
-                yEmpresa,
-                80
-            );
-        }
-
-        if (d.contacto) {
-            yEmpresa = escreverTextoPDF(
-                doc,
-                "Contacto: " + d.contacto,
-                margem,
-                yEmpresa,
-                80
-            );
-        }
-        if (d.moradaEmpresa) {
-            yEmpresa = escreverTextoPDF(
-                doc,
-                "Morada: " + d.moradaEmpresa,
-                margem,
-                yEmpresa,
-                80
-            );
-        }
-
-        if (d.moradaObra) {
-            yCliente = escreverTextoPDF(
-                doc,
-                "Local da obra: " + d.moradaObra,
-                112,
-                yCliente,
-                80
-            );
-        }
-
-        y = Math.max(yEmpresa, yCliente) + 8;
-        // DATA E VALIDADE
-
-        doc.setFillColor(...azulClaro);
-
-        doc.roundedRect(
-            margem,
-            y - 5,
-            largura,
-            17,
-            2,
-            2,
-            "F"
-        );
-
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.setTextColor(...azul);
-
-        doc.text("DATA", margem + 5, y + 1);
-        doc.text(
-            "VALIDADE DA PROPOSTA",
-            100,
-            y + 1
-        );
-
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(...escuro);
-
-        doc.text(d.data || "-", margem + 5, y + 7);
-        doc.text(d.validade || "-", 100, y + 7);
-
-        y += 25;
-
-        // TÍTULO DOS TRABALHOS
-
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
-        doc.setTextColor(...azul);
-
-        doc.text(
-            "TRABALHOS E MATERIAIS",
-            margem,
-            y
-        );
-
-        y += 7;
-
-        // CABEÇALHO DA TABELA
-
-        function cabecalhoTabela() {
-            doc.setFillColor(...azul);
-
-            doc.rect(
-                margem,
-                y - 5,
-                largura,
-                10,
-                "F"
-            );
-
-            doc.setFont("helvetica", "bold");
-            doc.setFontSize(8);
-            doc.setTextColor(255, 255, 255);
-
-            doc.text("DESCRIÇÃO", 21, y + 1);
-
-            doc.text(
-                "QTD.",
-                105,
-                y + 1,
-                { align: "right" }
-            );
-
-            doc.text(
-                "PREÇO UNIT.",
-                143,
-                y + 1,
-                { align: "right" }
-            );
-
-            doc.text(
-                "IVA",
-                166,
-                y + 1,
-                { align: "right" }
-            );
-
-            doc.text(
-                "TOTAL",
-                190,
-                y + 1,
-                { align: "right" }
-            );
-
-            y += 11;
-        }
-
-        cabecalhoTabela();
-
-        // LINHAS DOS TRABALHOS
-
-        d.items.forEach((item, indice) => {
-
-            const descricao = doc.splitTextToSize(
-                item.descricao,
-                70
-            );
-
-            const altura = Math.max(
-                9,
-                descricao.length * 4.5
-            );
-
-            if (y + altura > 260) {
-                doc.addPage();
-                y = 20;
-                cabecalhoTabela();
-            }
-
-            if (indice % 2 === 0) {
-                doc.setFillColor(248, 250, 253);
-
-                doc.rect(
-                    margem,
-                    y - 5,
-                    largura,
-                    altura + 2,
-                    "F"
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(8);
+                doc.setTextColor(255, 255, 255);
+
+                doc.text(
+                    "LOGÓTIPO",
+                    30.5,
+                    23,
+                    { align: "center" }
                 );
             }
 
+            doc.setFontSize(21);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(255, 255, 255);
+
+            doc.text("ORÇAMENTO", 52, 19);
+
+            doc.setFontSize(9);
             doc.setFont("helvetica", "normal");
-            doc.setFontSize(8);
-            doc.setTextColor(...escuro);
 
-            doc.text(descricao, 21, y);
+            doc.text("PROPOSTA COMERCIAL", 52, 27);
 
-            doc.text(
-                String(item.quantidade),
-                105,
-                y,
-                { align: "right" }
-            );
+            doc.setFontSize(10);
 
             doc.text(
-                euros(item.preco),
-                143,
-                y,
-                { align: "right" }
-            );
-
-            doc.text(
-                Number(item.taxa).toLocaleString("pt-PT") + "%",
-                166,
-                y,
-                { align: "right" }
-            );
-
-            doc.text(
-                euros(item.base),
-                190,
-                y,
-                { align: "right" }
-            );
-
-            y += altura + 3;
-
-            doc.setDrawColor(225, 231, 240);
-
-            doc.line(
-                margem,
-                y - 2,
+                "N.º " + d.numero,
                 192,
-                y - 2
+                19,
+                { align: "right" }
             );
-        });
-        // TOTAIS
 
-        const subtotal = d.items.reduce(
-            (soma, item) => soma + item.base,
-            0
-        );
+            y = 55;
 
-        const ivaTotal = d.items.reduce(
-            (soma, item) => soma + item.iva,
-            0
-        );
-
-        const total = subtotal + ivaTotal;
-
-        if (y + 48 > 270) {
-            doc.addPage();
-            y = 25;
-        }
-
-        y += 8;
-
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        doc.setTextColor(...escuro);
-
-        doc.text("Subtotal:", 135, y);
-
-        doc.text(
-            euros(subtotal),
-            190,
-            y,
-            { align: "right" }
-        );
-
-        y += 7;
-
-        doc.text("IVA total:", 135, y);
-
-        doc.text(
-            euros(ivaTotal),
-            190,
-            y,
-            { align: "right" }
-        );
-
-        y += 7;
-
-        // TOTAL DESTACADO
-
-        doc.setFillColor(...azulClaro);
-
-        doc.roundedRect(
-            112,
-            y - 5,
-            80,
-            18,
-            2,
-            2,
-            "F"
-        );
-
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(11);
-        doc.setTextColor(...azul);
-
-        doc.text("TOTAL", 117, y + 5);
-
-        doc.setFontSize(12);
-
-        doc.text(
-            euros(total),
-            187,
-            y + 5,
-            { align: "right" }
-        );
-
-        y += 25;
-
-        // CONDIÇÕES E OBSERVAÇÕES
-
-        if (d.notas) {
-            if (y + 30 > 270) {
-                doc.addPage();
-                y = 25;
-            }
+            // PRESTADOR E CLIENTE
 
             doc.setFont("helvetica", "bold");
             doc.setFontSize(10);
             doc.setTextColor(...azul);
 
             doc.text(
-                "CONDIÇÕES E OBSERVAÇÕES",
+                "PRESTADOR DE SERVIÇOS",
+                margem,
+                y
+            );
+
+            doc.text("CLIENTE", 112, y);
+
+            y += 8;
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(10);
+            doc.setTextColor(...escuro);
+
+            doc.text(d.empresa || "-", margem, y);
+            doc.text(d.cliente || "-", 112, y);
+
+            y += 6;
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(8);
+            doc.setTextColor(...cinza);
+
+            let yEmpresa = y;
+            let yCliente = y;
+
+            if (d.nif) {
+                yEmpresa = escreverTextoPDF(
+                    doc,
+                    "NIF: " + d.nif,
+                    margem,
+                    yEmpresa,
+                    80
+                );
+            }
+
+            if (d.contacto) {
+                yEmpresa = escreverTextoPDF(
+                    doc,
+                    "Contacto: " + d.contacto,
+                    margem,
+                    yEmpresa,
+                    80
+                );
+            }
+            if (d.moradaEmpresa) {
+                yEmpresa = escreverTextoPDF(
+                    doc,
+                    "Morada: " + d.moradaEmpresa,
+                    margem,
+                    yEmpresa,
+                    80
+                );
+            }
+
+            if (d.moradaObra) {
+                yCliente = escreverTextoPDF(
+                    doc,
+                    "Local da obra: " + d.moradaObra,
+                    112,
+                    yCliente,
+                    80
+                );
+            }
+
+            y = Math.max(yEmpresa, yCliente) + 8;
+            // DATA E VALIDADE
+
+            doc.setFillColor(...azulClaro);
+
+            doc.roundedRect(
+                margem,
+                y - 5,
+                largura,
+                17,
+                2,
+                2,
+                "F"
+            );
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(9);
+            doc.setTextColor(...azul);
+
+            doc.text("DATA", margem + 5, y + 1);
+            doc.text(
+                "VALIDADE DA PROPOSTA",
+                100,
+                y + 1
+            );
+
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(...escuro);
+
+            doc.text(d.data || "-", margem + 5, y + 7);
+            doc.text(d.validade || "-", 100, y + 7);
+
+            y += 25;
+
+            // TÍTULO DOS TRABALHOS
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(11);
+            doc.setTextColor(...azul);
+
+            doc.text(
+                "TRABALHOS E MATERIAIS",
                 margem,
                 y
             );
 
             y += 7;
 
+            // CABEÇALHO DA TABELA
+
+            function cabecalhoTabela() {
+                doc.setFillColor(...azul);
+
+                doc.rect(
+                    margem,
+                    y - 5,
+                    largura,
+                    10,
+                    "F"
+                );
+
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(8);
+                doc.setTextColor(255, 255, 255);
+
+                doc.text("DESCRIÇÃO", 21, y + 1);
+
+                doc.text(
+                    "QTD.",
+                    105,
+                    y + 1,
+                    { align: "right" }
+                );
+
+                doc.text(
+                    "PREÇO UNIT.",
+                    143,
+                    y + 1,
+                    { align: "right" }
+                );
+
+                doc.text(
+                    "IVA",
+                    166,
+                    y + 1,
+                    { align: "right" }
+                );
+
+                doc.text(
+                    "TOTAL",
+                    190,
+                    y + 1,
+                    { align: "right" }
+                );
+
+                y += 11;
+            }
+
+            cabecalhoTabela();
+
+            // LINHAS DOS TRABALHOS
+
+            d.items.forEach((item, indice) => {
+
+                const descricao = doc.splitTextToSize(
+                    item.descricao,
+                    70
+                );
+
+                const altura = Math.max(
+                    9,
+                    descricao.length * 4.5
+                );
+
+                if (y + altura > 260) {
+                    doc.addPage();
+                    y = 20;
+                    cabecalhoTabela();
+                }
+
+                if (indice % 2 === 0) {
+                    doc.setFillColor(248, 250, 253);
+
+                    doc.rect(
+                        margem,
+                        y - 5,
+                        largura,
+                        altura + 2,
+                        "F"
+                    );
+                }
+
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(8);
+                doc.setTextColor(...escuro);
+
+                doc.text(descricao, 21, y);
+
+                doc.text(
+                    String(item.quantidade),
+                    105,
+                    y,
+                    { align: "right" }
+                );
+
+                doc.text(
+                    euros(item.preco),
+                    143,
+                    y,
+                    { align: "right" }
+                );
+
+                doc.text(
+                    Number(item.taxa).toLocaleString("pt-PT") + "%",
+                    166,
+                    y,
+                    { align: "right" }
+                );
+
+                doc.text(
+                    euros(item.base),
+                    190,
+                    y,
+                    { align: "right" }
+                );
+
+                y += altura + 3;
+
+                doc.setDrawColor(225, 231, 240);
+
+                doc.line(
+                    margem,
+                    y - 2,
+                    192,
+                    y - 2
+                );
+            });
+            // TOTAIS
+
+            const subtotal = d.items.reduce(
+                (soma, item) => soma + item.base,
+                0
+            );
+
+            const ivaTotal = d.items.reduce(
+                (soma, item) => soma + item.iva,
+                0
+            );
+
+            const total = subtotal + ivaTotal;
+
+            if (y + 48 > 270) {
+                doc.addPage();
+                y = 25;
+            }
+
+            y += 8;
+
             doc.setFont("helvetica", "normal");
             doc.setFontSize(9);
             doc.setTextColor(...escuro);
 
-            y = escreverTextoPDF(
-                doc,
-                d.notas,
-                margem,
+            doc.text("Subtotal:", 135, y);
+
+            doc.text(
+                euros(subtotal),
+                190,
                 y,
-                largura
+                { align: "right" }
             );
 
-            y += 12;
-        }
+            y += 7;
 
-        // ASSINATURAS
+            doc.text("IVA total:", 135, y);
 
-        if (y + 30 > 270) {
-            doc.addPage();
-            y = 30;
-        }
+            doc.text(
+                euros(ivaTotal),
+                190,
+                y,
+                { align: "right" }
+            );
 
-        doc.setDrawColor(160, 170, 185);
-        doc.setLineWidth(0.3);
+            y += 7;
 
-        doc.line(
-            margem,
-            y + 12,
-            85,
-            y + 12
-        );
+            // TOTAL DESTACADO
 
-        doc.line(
-            125,
-            y + 12,
-            192,
-            y + 12
-        );
+            doc.setFillColor(...azulClaro);
 
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-        doc.setTextColor(...cinza);
+            doc.roundedRect(
+                112,
+                y - 5,
+                80,
+                18,
+                2,
+                2,
+                "F"
+            );
 
-        doc.text(
-            "Assinatura do profissional",
-            margem,
-            y + 18
-        );
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(11);
+            doc.setTextColor(...azul);
 
-        doc.text(
-            "Assinatura do cliente",
-            125,
-            y + 18
-        );
-        // RODAPÉ E PAGINAÇÃO
+            doc.text("TOTAL", 117, y + 5);
 
-        const paginas = doc.getNumberOfPages();
+            doc.setFontSize(12);
 
-        for (let pagina = 1; pagina <= paginas; pagina++) {
-            doc.setPage(pagina);
+            doc.text(
+                euros(total),
+                187,
+                y + 5,
+                { align: "right" }
+            );
 
-            doc.setDrawColor(220, 225, 232);
+            y += 25;
 
-            doc.line(18, 282, 192, 282);
+            // CONDIÇÕES E OBSERVAÇÕES
+
+            if (d.notas) {
+                if (y + 30 > 270) {
+                    doc.addPage();
+                    y = 25;
+                }
+
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(10);
+                doc.setTextColor(...azul);
+
+                doc.text(
+                    "CONDIÇÕES E OBSERVAÇÕES",
+                    margem,
+                    y
+                );
+
+                y += 7;
+
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(9);
+                doc.setTextColor(...escuro);
+
+                y = escreverTextoPDF(
+                    doc,
+                    d.notas,
+                    margem,
+                    y,
+                    largura
+                );
+
+                y += 12;
+            }
+
+            // ASSINATURAS
+
+            if (y + 30 > 270) {
+                doc.addPage();
+                y = 30;
+            }
+
+            doc.setDrawColor(160, 170, 185);
+            doc.setLineWidth(0.3);
+
+            doc.line(
+                margem,
+                y + 12,
+                85,
+                y + 12
+            );
+
+            doc.line(
+                125,
+                y + 12,
+                192,
+                y + 12
+            );
 
             doc.setFont("helvetica", "normal");
-            doc.setFontSize(7);
+            doc.setFontSize(8);
             doc.setTextColor(...cinza);
 
             doc.text(
-                "OrçaFácil | Proposta comercial — não constitui fatura",
-                18,
-                288
+                "Assinatura do profissional",
+                margem,
+                y + 18
             );
 
             doc.text(
-                "Página " + pagina + " de " + paginas,
-                192,
-                288,
-                { align: "right" }
+                "Assinatura do cliente",
+                125,
+                y + 18
             );
-        }
+            // RODAPÉ E PAGINAÇÃO
 
-        // DESCARREGAR PDF
+            const paginas = doc.getNumberOfPages();
 
-        const nomeSeguro = d.numero.replace(
-            /[^a-zA-Z0-9_-]/g,
-            "_"
-        );
+            for (let pagina = 1; pagina <= paginas; pagina++) {
+                doc.setPage(pagina);
 
-        doc.save(
-            "Orcamento_" +
-            (nomeSeguro || "novo") +
-            ".pdf"
-        );
+                doc.setDrawColor(220, 225, 232);
 
-        mostrarMensagem(
-            "PDF profissional gerado com sucesso!"
-        );
+                doc.line(18, 282, 192, 282);
 
-    } catch (erro) {
-        console.error("Erro ao gerar PDF:", erro);
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(7);
+                doc.setTextColor(...cinza);
 
-        mostrarMensagem(
-            erro.message ||
-            "Não foi possível gerar o PDF. Consulta a consola."
-        );
-    }
-}
-// ==========================================
-// VALIDAÇÃO
-// ==========================================
-
-function validarNIFPortugal(nif) {
-    nif = String(nif || "").replace(/\s/g, "");
-
-    if (!/^\d{9}$/.test(nif)) return false;
-
-    const numeros = nif.split("").map(Number);
-
-    let soma = 0;
-
-    for (let i = 0; i < 8; i++) {
-        soma += numeros[i] * (9 - i);
-    }
-
-    const resto = soma % 11;
-
-    const digitoControlo =
-        resto < 2 ? 0 : 11 - resto;
-
-    return digitoControlo === numeros[8];
-}
-
-function formularioValido() {
-    if (!form.reportValidity()) return false;
-
-    const nif = campo("nifEmpresa").value.trim();
-
-    if (nif && !validarNIFPortugal(nif)) {
-        mostrarMensagem(
-            "O NIF da empresa não é válido. Verifica os 9 algarismos."
-        );
-
-        campo("nifEmpresa").focus();
-        return false;
-    }
-
-    if (
-        campo("data").value >
-        campo("validade").value
-    ) {
-        mostrarMensagem(
-            "A validade não pode ser anterior à data do orçamento."
-        );
-
-        return false;
-    }
-
-    return validarLinhas();
-}
-// ==========================================
-// EVENTOS
-// ==========================================
-
-function instalarEventos() {
-    if (eventosInstalados) return;
-
-    eventosInstalados = true;
-
-    campo("adicionar").addEventListener("click", () => {
-        adicionarLinha();
-        guardarRascunho();
-    });
-
-    linhas.addEventListener("input", () => {
-        calcular();
-        guardarRascunho();
-    });
-
-    linhas.addEventListener("change", () => {
-        calcular();
-        guardarRascunho();
-    });
-
-    linhas.addEventListener("click", event => {
-        const botao = event.target.closest(".remover");
-
-        if (botao) {
-            botao.closest(".linha-trabalho").remove();
-            calcular();
-            guardarRascunho();
-        }
-    });
-
-    // AÇÕES DO HISTÓRICO
-
-    campo("listaOrcamentos").addEventListener(
-        "click",
-        async event => {
-
-            const botao = event.target.closest(
-                "button[data-acao]"
-            );
-
-            if (!botao) return;
-
-            const id = botao.dataset.id;
-            const acao = botao.dataset.acao;
-
-            const historico = obterHistorico();
-
-            const orcamento = historico.find(
-                item => String(item.id) === String(id)
-            );
-
-            if (!orcamento) {
-                mostrarMensagem(
-                    "Não foi possível encontrar esse orçamento."
+                doc.text(
+                    "OrçaFácil | Proposta comercial — não constitui fatura",
+                    18,
+                    288
                 );
-                return;
+
+                doc.text(
+                    "Página " + pagina + " de " + paginas,
+                    192,
+                    288,
+                    { align: "right" }
+                );
             }
 
-            try {
-                if (acao === "abrir") {
-                    preencherFormulario(orcamento);
+            // DESCARREGAR PDF
+
+            const nomeSeguro = d.numero.replace(
+                /[^a-zA-Z0-9_-]/g,
+                "_"
+            );
+
+            doc.save(
+                "Orcamento_" +
+                (nomeSeguro || "novo") +
+                ".pdf"
+            );
+
+            mostrarMensagem(
+                "PDF profissional gerado com sucesso!"
+            );
+
+        } catch (erro) {
+            console.error("Erro ao gerar PDF:", erro);
+
+            mostrarMensagem(
+                erro.message ||
+                "Não foi possível gerar o PDF. Consulta a consola."
+            );
+        }
+    }
+    // ==========================================
+    // VALIDAÇÃO
+    // ==========================================
+
+    function validarNIFPortugal(nif) {
+        nif = String(nif || "").replace(/\s/g, "");
+
+        if (!/^\d{9}$/.test(nif)) return false;
+
+        const numeros = nif.split("").map(Number);
+
+        let soma = 0;
+
+        for (let i = 0; i < 8; i++) {
+            soma += numeros[i] * (9 - i);
+        }
+
+        const resto = soma % 11;
+
+        const digitoControlo =
+            resto < 2 ? 0 : 11 - resto;
+
+        return digitoControlo === numeros[8];
+    }
+
+    function formularioValido() {
+        if (!form.reportValidity()) return false;
+
+        const nif = campo("nifEmpresa").value.trim();
+
+        if (nif && !validarNIFPortugal(nif)) {
+            mostrarMensagem(
+                "O NIF da empresa não é válido. Verifica os 9 algarismos."
+            );
+
+            campo("nifEmpresa").focus();
+            return false;
+        }
+
+        if (
+            campo("data").value >
+            campo("validade").value
+        ) {
+            mostrarMensagem(
+                "A validade não pode ser anterior à data do orçamento."
+            );
+
+            return false;
+        }
+
+        return validarLinhas();
+    }
+    // ==========================================
+    // EVENTOS
+    // ==========================================
+
+    function instalarEventos() {
+        if (eventosInstalados) return;
+
+        eventosInstalados = true;
+
+        campo("adicionar").addEventListener("click", () => {
+            adicionarLinha();
+            guardarRascunho();
+        });
+
+        linhas.addEventListener("input", () => {
+            calcular();
+            guardarRascunho();
+        });
+
+        linhas.addEventListener("change", () => {
+            calcular();
+            guardarRascunho();
+        });
+
+        linhas.addEventListener("click", event => {
+            const botao = event.target.closest(".remover");
+
+            if (botao) {
+                botao.closest(".linha-trabalho").remove();
+                calcular();
+                guardarRascunho();
+            }
+        });
+
+        // AÇÕES DO HISTÓRICO
+
+        campo("listaOrcamentos").addEventListener(
+            "click",
+            async event => {
+
+                const botao = event.target.closest(
+                    "button[data-acao]"
+                );
+
+                if (!botao) return;
+
+                const id = botao.dataset.id;
+                const acao = botao.dataset.acao;
+
+                const historico = obterHistorico();
+
+                const orcamento = historico.find(
+                    item => String(item.id) === String(id)
+                );
+
+                if (!orcamento) {
+                    mostrarMensagem(
+                        "Não foi possível encontrar esse orçamento."
+                    );
+                    return;
+                }
+
+                try {
+                    if (acao === "abrir") {
+                        preencherFormulario(orcamento);
+
+                        campo("historicoOrcamentos").hidden = true;
+
+                        guardarRascunho();
+
+                        mostrarMensagem(
+                            "Orçamento carregado para edição."
+                        );
+
+                        window.scrollTo({
+                            top: 0,
+                            behavior: "smooth"
+                        });
+                    }
+
+                    if (acao === "duplicar") {
+
+                        const copia = {
+                            ...orcamento,
+                            numero: "",
+                            data: campo("data").value,
+                            id: null,
+                            atualizadoEm: new Date().toISOString()
+                        };
+
+                        preencherFormulario(copia);
+
+                        orcamentoAtualId = null;
+
+                        guardarRascunho();
+
+                        campo("historicoOrcamentos").hidden = true;
+
+                        mostrarMensagem(
+                            "Orçamento duplicado. O número será atribuído quando for guardado."
+                        );
+
+                        form.scrollIntoView({
+                            behavior: "smooth",
+                            block: "start"
+                        });
+                    }
+
+                    if (acao === "eliminar") {
+                        if (!confirm(
+                            "Tens a certeza de que queres eliminar este orçamento?"
+                        )) {
+                            return;
+                        }
+
+                        await eliminarOrcamentoDaNuvem(orcamento);
+
+                        guardarHistoricoLocal(
+                            historico.filter(
+                                item => item.numero !== orcamento.numero
+                            )
+                        );
+
+                        if (orcamentoAtualId === id) {
+                            orcamentoAtualId = null;
+                        }
+
+                        mostrarHistorico();
+
+                        mostrarMensagem(
+                            "Orçamento eliminado da nuvem."
+                        );
+                    }
+
+                } catch (erro) {
+                    console.error(erro);
+                    mostrarMensagem(erro.message);
+                }
+            }
+        );
+        // ABRIR HISTÓRICO
+
+        campo("abrirHistorico").addEventListener("click", () => {
+            mostrarHistorico();
+
+            campo("historicoOrcamentos").scrollIntoView({
+                behavior: "smooth"
+            });
+        });
+
+        // NOVO ORÇAMENTO
+
+        campo("novoOrcamento").addEventListener(
+            "click",
+            async () => {
+
+                if (!confirm(
+                    "Queres guardar o orçamento atual e começar um novo?"
+                )) {
+                    return;
+                }
+
+                try {
+                    const temConteudo =
+                        campo("cliente").value.trim() ||
+                        obterLinhas().some(
+                            item => item.descricao.trim()
+                        );
+
+                    if (
+                        temConteudo &&
+                        !await guardarNoHistorico()
+                    ) {
+                        return;
+                    }
+
+                    const empresa = dadosProfissional();
+
+                    aRestaurarDados = true;
+
+                    form.reset();
+                    linhas.innerHTML = "";
+
+                    campo("empresa").value =
+                        empresa.empresa || "";
+
+                    campo("nifEmpresa").value =
+                        empresa.nifEmpresa || "";
+
+                    campo("contacto").value =
+                        empresa.contacto || "";
+
+                    campo("moradaEmpresa").value =
+                        empresa.moradaEmpresa || "";
+
+                    iniciarDatas();
+
+                    adicionarLinha();
+
+                    campo("numero").value = "";
+
+                    orcamentoAtualId = null;
+
+                    aRestaurarDados = false;
+
+                    guardarDadosProfissional();
+                    calcular();
+                    guardarRascunho();
 
                     campo("historicoOrcamentos").hidden = true;
 
-                    guardarRascunho();
-
                     mostrarMensagem(
-                        "Orçamento carregado para edição."
+                        "Novo orçamento criado. O número será atribuído quando for guardado."
                     );
 
                     window.scrollTo({
                         top: 0,
                         behavior: "smooth"
                     });
+
+                } catch (erro) {
+                    aRestaurarDados = false;
+                    console.error(erro);
+                    mostrarMensagem(erro.message);
                 }
-
-                if (acao === "duplicar") {
-
-                    const copia = {
-                        ...orcamento,
-                        numero: "",
-                        data: campo("data").value,
-                        id: null,
-                        atualizadoEm: new Date().toISOString()
-                    };
-
-                    preencherFormulario(copia);
-
-                    orcamentoAtualId = null;
-
-                    guardarRascunho();
-
-                    campo("historicoOrcamentos").hidden = true;
-
-                    mostrarMensagem(
-                        "Orçamento duplicado. O número será atribuído quando for guardado."
-                    );
-
-                    form.scrollIntoView({
-                        behavior: "smooth",
-                        block: "start"
-                    });
-                }
-
-                if (acao === "eliminar") {
-                    if (!confirm(
-                        "Tens a certeza de que queres eliminar este orçamento?"
-                    )) {
-                        return;
-                    }
-
-                    await eliminarOrcamentoDaNuvem(orcamento);
-
-                    guardarHistoricoLocal(
-                        historico.filter(
-                            item => item.numero !== orcamento.numero
-                        )
-                    );
-
-                    if (orcamentoAtualId === id) {
-                        orcamentoAtualId = null;
-                    }
-
-                    mostrarHistorico();
-
-                    mostrarMensagem(
-                        "Orçamento eliminado da nuvem."
-                    );
-                }
-
-            } catch (erro) {
-                console.error(erro);
-                mostrarMensagem(erro.message);
             }
-        }
-    );
-    // ABRIR HISTÓRICO
+        );
+        // DADOS PROFISSIONAIS
 
-    campo("abrirHistorico").addEventListener("click", () => {
-        mostrarHistorico();
+        [
+            "empresa",
+            "nifEmpresa",
+            "contacto",
+            "moradaEmpresa"
+        ].forEach(id => {
+            campo(id).addEventListener(
+                "input",
+                guardarDadosProfissional
+            );
 
-        campo("historicoOrcamentos").scrollIntoView({
-            behavior: "smooth"
+            campo(id).addEventListener(
+                "change",
+                guardarDadosProfissional
+            );
         });
-    });
 
-    // NOVO ORÇAMENTO
+        // LOGÓTIPO
 
-    campo("novoOrcamento").addEventListener(
-        "click",
-        async () => {
+        campo("logotipo").addEventListener(
+            "change",
+            async () => {
+                try {
+                    await obterLogotipo();
 
-            if (!confirm(
-                "Queres guardar o orçamento atual e começar um novo?"
-            )) {
-                return;
-            }
-
-            try {
-                const temConteudo =
-                    campo("cliente").value.trim() ||
-                    obterLinhas().some(
-                        item => item.descricao.trim()
+                    mostrarMensagem(
+                        "Logótipo guardado na tua conta."
                     );
 
-                if (
-                    temConteudo &&
-                    !await guardarNoHistorico()
-                ) {
-                    return;
+                } catch (erro) {
+                    mostrarMensagem(erro.message);
+                    campo("logotipo").value = "";
                 }
-
-                const empresa = dadosProfissional();
-
-                aRestaurarDados = true;
-
-                form.reset();
-                linhas.innerHTML = "";
-
-                campo("empresa").value =
-                    empresa.empresa || "";
-
-                campo("nifEmpresa").value =
-                    empresa.nifEmpresa || "";
-
-                campo("contacto").value =
-                    empresa.contacto || "";
-
-                campo("moradaEmpresa").value =
-                    empresa.moradaEmpresa || "";
-
-                iniciarDatas();
-
-                adicionarLinha();
-
-                campo("numero").value = "";
-
-                orcamentoAtualId = null;
-
-                aRestaurarDados = false;
-
-                guardarDadosProfissional();
-                calcular();
-                guardarRascunho();
-
-                campo("historicoOrcamentos").hidden = true;
-
-                mostrarMensagem(
-                    "Novo orçamento criado. O número será atribuído quando for guardado."
-                );
-
-                window.scrollTo({
-                    top: 0,
-                    behavior: "smooth"
-                });
-
-            } catch (erro) {
-                aRestaurarDados = false;
-                console.error(erro);
-                mostrarMensagem(erro.message);
             }
-        }
-    );
-    // DADOS PROFISSIONAIS
-
-    [
-        "empresa",
-        "nifEmpresa",
-        "contacto",
-        "moradaEmpresa"
-    ].forEach(id => {
-        campo(id).addEventListener(
-            "input",
-            guardarDadosProfissional
         );
 
-        campo(id).addEventListener(
-            "change",
-            guardarDadosProfissional
-        );
-    });
+        // CAMPOS DO RASCUNHO
 
-    // LOGÓTIPO
+        [
+            "cliente",
+            "moradaObra",
+            "numero",
+            "data",
+            "validade",
+            "notas"
+        ].forEach(id => {
+            campo(id).addEventListener(
+                "input",
+                guardarRascunho
+            );
 
-    campo("logotipo").addEventListener(
-        "change",
-        async () => {
-            try {
-                await obterLogotipo();
+            campo(id).addEventListener(
+                "change",
+                guardarRascunho
+            );
+        });
 
-                mostrarMensagem(
-                    "Logótipo guardado na tua conta."
-                );
+        // GERAR PDF
 
-            } catch (erro) {
-                mostrarMensagem(erro.message);
-                campo("logotipo").value = "";
-            }
-        }
-    );
-
-    // CAMPOS DO RASCUNHO
-
-    [
-        "cliente",
-        "moradaObra",
-        "numero",
-        "data",
-        "validade",
-        "notas"
-    ].forEach(id => {
-        campo(id).addEventListener(
-            "input",
-            guardarRascunho
-        );
-
-        campo(id).addEventListener(
-            "change",
-            guardarRascunho
-        );
-    });
-
-    // GERAR PDF
-
-    form.addEventListener("submit", async event => {
-        event.preventDefault();
-        event.stopPropagation();
-
-        mostrarMensagem("");
-
-        if (!formularioValido()) return;
-
-        try {
-            await sincronizarGravacoesPendentes();
-
-            if (!await guardarNoHistorico()) return;
-
-            await guardarRascunhoNaNuvem();
-
-            await gerarPDF();
-
-            mostrarHistorico();
-
-        } catch (erro) {
-            console.error(erro);
-            mostrarMensagem(erro.message);
-        }
-    });
-
-    // IMPRIMIR
-
-    campo("imprimir").addEventListener(
-        "click",
-        async () => {
+        form.addEventListener("submit", async event => {
+            event.preventDefault();
+            event.stopPropagation();
 
             mostrarMensagem("");
 
@@ -2229,11 +2211,7 @@ function instalarEventos() {
 
                 await guardarRascunhoNaNuvem();
 
-                mostrarMensagem(
-                    "Orçamento guardado na nuvem."
-                );
-
-                window.print();
+                await gerarPDF();
 
                 mostrarHistorico();
 
@@ -2241,142 +2219,173 @@ function instalarEventos() {
                 console.error(erro);
                 mostrarMensagem(erro.message);
             }
+        });
+
+        // IMPRIMIR
+
+        campo("imprimir").addEventListener(
+            "click",
+            async () => {
+
+                mostrarMensagem("");
+
+                if (!formularioValido()) return;
+
+                try {
+                    await sincronizarGravacoesPendentes();
+
+                    if (!await guardarNoHistorico()) return;
+
+                    await guardarRascunhoNaNuvem();
+
+                    mostrarMensagem(
+                        "Orçamento guardado na nuvem."
+                    );
+
+                    window.print();
+
+                    mostrarHistorico();
+
+                } catch (erro) {
+                    console.error(erro);
+                    mostrarMensagem(erro.message);
+                }
+            }
+        );
+
+        // CÓPIAS DE SEGURANÇA
+
+        const botaoExportar = campo("exportarBackup");
+
+        if (botaoExportar) {
+            botaoExportar.addEventListener(
+                "click",
+                exportarBackup
+            );
         }
-    );
 
-    // CÓPIAS DE SEGURANÇA
+        const botaoImportar = campo("importarBackup");
+        const ficheiroBackup = campo("ficheiroBackup");
 
-    const botaoExportar = campo("exportarBackup");
+        if (botaoImportar && ficheiroBackup) {
+            botaoImportar.addEventListener(
+                "click",
+                () => ficheiroBackup.click()
+            );
 
-    if (botaoExportar) {
-        botaoExportar.addEventListener(
-            "click",
-            exportarBackup
-        );
+            ficheiroBackup.addEventListener(
+                "change",
+                () => importarBackup(ficheiroBackup.files[0])
+            );
+        }
     }
+    // ==========================================
+    // INICIALIZAÇÃO DA APLICAÇÃO
+    // ==========================================
 
-    const botaoImportar = campo("importarBackup");
-    const ficheiroBackup = campo("ficheiroBackup");
+    async function iniciarAplicacaoOrcaFacil() {
 
-    if (botaoImportar && ficheiroBackup) {
-        botaoImportar.addEventListener(
-            "click",
-            () => ficheiroBackup.click()
+        if (!form || !linhas || !mensagem) {
+            throw new Error(
+                "Não foram encontrados todos os elementos do formulário."
+            );
+        }
+
+        // Carregar sempre os dados da conta atual.
+        dadosNuvemCarregados = false;
+
+        await carregarDadosDaNuvem();
+
+        instalarEventos();
+
+        aRestaurarDados = true;
+
+        iniciarDatas();
+
+        const profissional = lerJSONLocal(
+            CHAVE_PROFISSIONAL,
+            {}
         );
 
-        ficheiroBackup.addEventListener(
-            "change",
-            () => importarBackup(ficheiroBackup.files[0])
+        campo("empresa").value =
+            profissional.empresa || "";
+
+        campo("nifEmpresa").value =
+            profissional.nifEmpresa || "";
+
+        campo("contacto").value =
+            profissional.contacto || "";
+
+        campo("moradaEmpresa").value =
+            profissional.moradaEmpresa || "";
+
+        const rascunho = lerJSONLocal(
+            CHAVE_RASCUNHO,
+            null
         );
+
+        if (rascunho && rascunho.numero) {
+            preencherFormulario(rascunho);
+
+        } else {
+            campo("cliente").value = "";
+            campo("moradaObra").value = "";
+            campo("notas").value = "";
+
+            linhas.innerHTML = "";
+
+            adicionarLinha(
+                "Trabalhos de pintura",
+                1,
+                100,
+                23
+            );
+
+            campo("numero").value = "";
+
+            orcamentoAtualId = null;
+        }
+
+        calcular();
+
+        aRestaurarDados = false;
+
+        // Guardar perfil e rascunho inicial.
+        await guardarDadosProfissionalNaNuvem();
+        await guardarRascunhoNaNuvem();
+
+        console.log(
+            "OrçaFácil pronto: dados sincronizados com o Supabase."
+        );
+
+        mostrarHistorico();
+
+        campo("historicoOrcamentos").hidden = true;
     }
-}
-// ==========================================
-// INICIALIZAÇÃO DA APLICAÇÃO
-// ==========================================
+    // ==========================================
+    // DISPONIBILIZAR FUNÇÕES AO AUTH.JS
+    // ==========================================
 
-async function iniciarAplicacaoOrcaFacil() {
-
-    if (!form || !linhas || !mensagem) {
-        throw new Error(
-            "Não foram encontrados todos os elementos do formulário."
-        );
-    }
-
-    // Carregar sempre os dados da conta atual.
-    dadosNuvemCarregados = false;
-
-    await carregarDadosDaNuvem();
-
-    instalarEventos();
-
-    aRestaurarDados = true;
-
-    iniciarDatas();
-
-    const profissional = lerJSONLocal(
-        CHAVE_PROFISSIONAL,
-        {}
-    );
-
-    campo("empresa").value =
-        profissional.empresa || "";
-
-    campo("nifEmpresa").value =
-        profissional.nifEmpresa || "";
-
-    campo("contacto").value =
-        profissional.contacto || "";
-
-    campo("moradaEmpresa").value =
-        profissional.moradaEmpresa || "";
-
-    const rascunho = lerJSONLocal(
-        CHAVE_RASCUNHO,
-        null
-    );
-
-    if (rascunho && rascunho.numero) {
-        preencherFormulario(rascunho);
-
-    } else {
-        campo("cliente").value = "";
-        campo("moradaObra").value = "";
-        campo("notas").value = "";
-
-        linhas.innerHTML = "";
-
-        adicionarLinha(
-            "Trabalhos de pintura",
-            1,
-            100,
-            23
-        );
-
-        campo("numero").value = "";
-
-        orcamentoAtualId = null;
-    }
-
-    calcular();
-
-    aRestaurarDados = false;
-
-    // Guardar perfil e rascunho inicial.
-    await guardarDadosProfissionalNaNuvem();
-    await guardarRascunhoNaNuvem();
+    // Inicializar a aplicação
+    window.iniciarAplicacaoOrcaFacil =
+        iniciarAplicacaoOrcaFacil;
 
     console.log(
-        "OrçaFácil pronto: dados sincronizados com o Supabase."
+        "Teste: função de inicialização disponível:",
+        typeof window.iniciarAplicacaoOrcaFacil
     );
 
-    mostrarHistorico();
+    // Sincronizar os dados antes de terminar sessão
+    window.prepararTerminarSessao = async function () {
 
-    campo("historicoOrcamentos").hidden = true;
-}
-// ==========================================
-// DISPONIBILIZAR FUNÇÕES AO AUTH.JS
-// ==========================================
+        exigirNuvem();
 
-// Inicializar a aplicação
-window.iniciarAplicacaoOrcaFacil =
-    iniciarAplicacaoOrcaFacil;
+        await sincronizarGravacoesPendentes();
 
-console.log(
-    "Teste: função de inicialização disponível:",
-    typeof window.iniciarAplicacaoOrcaFacil
-);
-
-// Sincronizar os dados antes de terminar sessão
-window.prepararTerminarSessao = async function () {
-
-    exigirNuvem();
-
-    await sincronizarGravacoesPendentes();
-
-    console.log(
-        "Dados sincronizados. Pronto para terminar sessão."
-    );
-};
+        console.log(
+            "Dados sincronizados. Pronto para terminar sessão."
+        );
+    };
 
     // Fim da aplicação
-}) ();
+})();
