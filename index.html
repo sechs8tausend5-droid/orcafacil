@@ -63,6 +63,26 @@
             </button>
         </div>
 
+        <!-- A MINHA CONTA -->
+        <section id="minhaConta">
+            <h2>A minha conta</h2>
+
+            <p>Estado da conta: <strong id="estadoSubscricao">A carregar...</strong></p>
+
+            <p id="fimTrial"></p>
+
+            <p>Subscrição: 7 dias gratuitos e depois 9,90 €/mês.</p>
+
+            <p id="informacaoPagamento">
+                Ao aderires, introduzes o cartão. No final dos 7 dias,
+                será cobrado automaticamente o valor mensal de 9,90 €.
+            </p>
+
+            <button type="button" id="aderirSubscricao" onclick="iniciarPagamentoStripe()">
+                Aderir ao OrçaFácil
+            </button>
+        </section>
+
         <!-- APRESENTAÇÃO -->
 
         <section class="intro">
@@ -198,6 +218,17 @@
                         Validade da proposta
 
                         <input id="validade" type="date" required>
+                    </label>
+
+                    <label>
+                        Estado do orçamento
+
+                        <select id="estadoOrcamento">
+                            <option value="Pendente">Pendente</option>
+                            <option value="Enviado ao cliente">Enviado ao cliente</option>
+                            <option value="Aceite">Aceite</option>
+                            <option value="Recusado">Recusado</option>
+                        </select>
                     </label>
 
                 </div>
@@ -344,6 +375,9 @@
 
     <!-- APLICAÇÃO -->
     <script src="app.js"></script>
+
+    <!-- PAGAMENTOS STRIPE -->
+    <script src="pagamentos.js"></script>
 
     <!-- AUTENTICAÇÃO -->
     <script src="auth.js"></script>

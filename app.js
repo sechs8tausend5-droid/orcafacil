@@ -557,6 +557,7 @@
             data: campo("data").value,
             validade: campo("validade").value,
             notas: campo("notas").value.trim(),
+            estado: campo("estadoOrcamento")?.value || "Pendente",
             items: obterLinhas()
         };
     }
@@ -885,7 +886,8 @@
         campo("data").value = orcamento.data || "";
         campo("validade").value = orcamento.validade || "";
         campo("notas").value = orcamento.notas || "";
-
+        campo("estadoOrcamento").value =
+            orcamento.estado || "Pendente"
         linhas.innerHTML = "";
 
         if (
@@ -961,7 +963,9 @@
             const data = document.createElement("p");
             data.textContent =
                 "Data: " + (orcamento.data || "-");
-
+            const estado = document.createElement("p");
+            estado.textContent =
+                "Estado: " + (orcamento.estado || "Pendente");
             const total = (orcamento.items || []).reduce(
                 (soma, item) => {
 
@@ -1013,6 +1017,7 @@
                 titulo,
                 cliente,
                 data,
+                estado,
                 valor,
                 botoes
             );
@@ -1764,25 +1769,49 @@
 
             // ASSINATURAS
 
-            if (y + 30 > 270) {
+
+            // ACEITAÇÃO E ASSINATURAS
+
+            if (y + 55 > 270) {
                 doc.addPage();
-                y = 30;
+                y = 25;
             }
+
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(10);
+            doc.setTextColor(...azul);
+
+            doc.text(
+                "ACEITAÇÃO DO ORÇAMENTO",
+                margem,
+                y
+            );
+
+            y += 7;
+
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(8);
+            doc.setTextColor(...escuro);
+
+            y = escreverTextoPDF(
+                doc,
+                "Declaro que aceito o presente orçamento e as condições e observações nele indicadas.",
+                margem,
+                y,
+                largura
+            );
+
+            y += 10;
 
             doc.setDrawColor(160, 170, 185);
             doc.setLineWidth(0.3);
+
+            // ASSINATURA DO PROFISSIONAL
 
             doc.line(
                 margem,
                 y + 12,
                 85,
-                y + 12
-            );
-
-            doc.line(
-                125,
-                y + 12,
-                192,
                 y + 12
             );
 
@@ -1796,11 +1825,33 @@
                 y + 18
             );
 
+            // ASSINATURA DO CLIENTE
+
+            doc.line(
+                125,
+                y + 12,
+                192,
+                y + 12
+            );
+
             doc.text(
                 "Assinatura do cliente",
                 125,
                 y + 18
             );
+
+            doc.text(
+                "Nome: " + (d.cliente || "-"),
+                125,
+                y + 24
+            );
+
+            doc.text(
+                "Data de aceitação: ____ / ____ / ______",
+                125,
+                y + 30
+            );
+
             // RODAPÉ E PAGINAÇÃO
 
             const paginas = doc.getNumberOfPages();

@@ -153,6 +153,11 @@ async function mostrarAcesso(autenticado) {
 
             await window.iniciarAplicacaoOrcaFacil();
 
+            // Carregar informação da subscrição
+            if (typeof window.carregarEstadoSubscricao === "function") {
+                await window.carregarEstadoSubscricao();
+            }
+
             aplicacaoIniciada = true;
 
             areaAutenticacao.hidden = true;
